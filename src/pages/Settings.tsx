@@ -66,7 +66,7 @@ export default function Settings() {
       <h2>Sounds</h2>
       <div className="row">
         <label><input type="checkbox" checked={prefs.soundLearnable} onChange={(e) => setPrefs({ soundLearnable: e.target.checked })} />
-          {" "}When your target readies or uses a move that teaches a spell you're missing</label>
+          {" "}When your target uses a move that teaches a spell you're missing</label>
         <button onClick={() => chime("learnable")}>Test</button>
       </div>
       <div className="row">

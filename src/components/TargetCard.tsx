@@ -42,8 +42,8 @@ export default function TargetCard() {
 
   const have = liveLearned ?? learned;
   const teachesMissing = (m: { skill: number }) => { const s = skills.get(m.skill); return !!s?.spell && !have.has(s.spell); };
-  // Chime once per new move (readying or used) that teaches a spell you're missing, even while the card is hidden.
-  const newest = moves.find(teachesMissing);
+  // Chime once per new used move that teaches a spell you're missing, even while the card is hidden.
+  const newest = moves.find((m) => !m.ready && teachesMissing(m)); // only on use: a readied move can still be stunned
   useEffect(() => {
     if (!newest || newest.time <= chimed.current) return;
     if (prefs.soundLearnable && Date.now() / 1000 - newest.time < 10) chime("learnable"); // old moves after a (re)load: no chime
