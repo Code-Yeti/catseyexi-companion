@@ -30,16 +30,21 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   // Follow me: keep your live dot centred (at the current zoom, at least 2x) as you move. Manual panning turns it off.
   const [follow, setFollow] = useState(false);
   const centerRef = useRef<(() => void) | null>(null);
+  // Smoothing: position updates arrive ~1/s, so tween the dot (and the followed view) over about that long.
+  // Your own zooms/drags stay instant; big jumps (warps, zoning) snap instead of sliding across the map.
+  const TWEEN = "transform 1s linear";
+  const animView = useRef(false);                  // true while the view is moved by Follow, false for user input
+  const prevHere = useRef<{ x: number; z: number } | null>(null);
   const clampView = (v: { z: number; tx: number; ty: number }) => {
     const fw = frame.current?.clientWidth ?? 0, fh = frame.current?.clientHeight ?? 0;
     const z = Math.min(8, Math.max(1, v.z));
     return { z, tx: Math.min(0, Math.max(fw - fw * z, v.tx)), ty: Math.min(0, Math.max(fh - fh * z, v.ty)) };
   };
-  const zoomAt = (f: number, cx?: number, cy?: number) => setView((v) => {
+  const zoomAt = (f: number, cx?: number, cy?: number) => { animView.current = false; setView((v) => {
     const fw = frame.current?.clientWidth ?? 0, fh = frame.current?.clientHeight ?? 0;
     const x = cx ?? fw / 2, y = cy ?? fh / 2, z = Math.min(8, Math.max(1, v.z * f)), k = z / v.z;
     return clampView({ z, tx: x - (x - v.tx) * k, ty: y - (y - v.ty) * k });
-  });
+  }); };
 
   useEffect(() => {
     q<ZoneMapRow>("SELECT * FROM zone_maps WHERE zoneid=$1 ORDER BY ord", zoneid).then((m) => { setMaps(m); setFloor(0); });
@@ -102,6 +107,8 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   };
   // Live position (addon, ~1s) beats the catseyexi.com position (3 min).
   const here = live && live.zone === zoneid ? live.pos : char?.pos_zone === zoneid ? { x: char.pos_x, z: char.pos_z } : null;
+  const jump = !!here && !!prevHere.current && Math.hypot(here.x - prevHere.current.x, here.z - prevHere.current.z) > 60; // yalms
+  prevHere.current = here ? { x: here.x, z: here.z } : null;
   const mark = (e: React.MouseEvent) => {
     if (dragged.current) { dragged.current = false; return; } // that was a pan, not a click
     if (!marks || !live || live.zone !== zoneid) return;
@@ -120,6 +127,7 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
     if (!fit || !here || !frame.current) return;
     const fw = frame.current.clientWidth, fh = frame.current.clientHeight;
     const z = Math.max(view.z, 2), mx = ((fit.a * here.x + fit.b) / W) * fw, my = ((fit.c * here.z + fit.d) / H) * fh;
+    animView.current = z === view.z; // pure follow step: tween it; the first zoom-in to 2x is instant
     setView((v) => {
       const next = clampView({ z, tx: fw / 2 - mx * z, ty: fh / 2 - my * z });
       return next.z === v.z && Math.abs(next.tx - v.tx) < 0.5 && Math.abs(next.ty - v.ty) < 0.5 ? v : next;
@@ -154,6 +162,7 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
           if (q && view.z > 1) {
             const dx = e.clientX - q.x, dy = e.clientY - q.y;
             if (Math.abs(dx) + Math.abs(dy) > 4) { q.moved = true; setFollow(false); }
+            animView.current = false;
             setView(clampView({ z: view.z, tx: q.tx + dx, ty: q.ty + dy }));
           }
         }}
@@ -163,9 +172,10 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
           <button title="Zoom out" onClick={() => zoomAt(1 / 1.5)}>−</button>
           {here && fit && <button title={follow ? "Following you (click to stop)" : "Follow me: keep my position centred"}
             className={follow ? "active-tab" : ""} onClick={() => setFollow(!follow)}>⌖</button>}
-          {view.z > 1 && <button title="Reset zoom" onClick={() => { setFollow(false); setView({ z: 1, tx: 0, ty: 0 }); }}>⟲</button>}
+          {view.z > 1 && <button title="Reset zoom" onClick={() => { setFollow(false); animView.current = false; setView({ z: 1, tx: 0, ty: 0 }); }}>⟲</button>}
         </div>
-        <div ref={box} className="map-content" style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.z})` }}>
+        <div ref={box} className="map-content" style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.z})`,
+          transition: follow && animView.current && !jump ? TWEEN : "none" }}>
         {src ? <img src={src} draggable={false} /> : <div className="muted" style={{ width: 512, height: 512 }}>Downloading map…</div>}
         {fit && (
           <svg viewBox={`0 0 ${W} ${H}`} className="map-overlay">
@@ -173,7 +183,11 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
             {points.map((p, i) => (
               <circle key={i} cx={fit.a * p.x + fit.b} cy={fit.c * p.z + fit.d} r={r} className="dot"><title>{p.label} ({p.x.toFixed(0)}, {p.z.toFixed(0)})</title></circle>
             ))}
-            {here && <circle cx={fit.a * here.x + fit.b} cy={fit.c * here.z + fit.d} r={r * 1.4} className="me"><title>You</title></circle>}
+            {here && (
+              <g style={{ transform: `translate(${fit.a * here.x + fit.b}px, ${fit.c * here.z + fit.d}px)`, transition: jump || draft ? "none" : TWEEN }}>
+                <circle cx={0} cy={0} r={r * 1.4} className="me"><title>You</title></circle>
+              </g>
+            )}
           </svg>
         )}
         {marks && (
