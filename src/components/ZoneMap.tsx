@@ -27,6 +27,9 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   const [view, setView] = useState({ z: 1, tx: 0, ty: 0 });
   const pan = useRef<{ x: number; y: number; tx: number; ty: number; moved: boolean } | null>(null);
   const dragged = useRef(false);
+  // Follow me: keep your live dot centred (at the current zoom, at least 2x) as you move. Manual panning turns it off.
+  const [follow, setFollow] = useState(false);
+  const centerRef = useRef<(() => void) | null>(null);
   const clampView = (v: { z: number; tx: number; ty: number }) => {
     const fw = frame.current?.clientWidth ?? 0, fh = frame.current?.clientHeight ?? 0;
     const z = Math.min(8, Math.max(1, v.z));
@@ -46,7 +49,7 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   const m = maps?.[floor];
   useEffect(() => {
     if (!m) return;
-    setSrc(undefined); setErr(undefined); setDraft(null); setMarks(null); setView({ z: 1, tx: 0, ty: 0 });
+    setSrc(undefined); setErr(undefined); setDraft(null); setMarks(null); setView({ z: 1, tx: 0, ty: 0 }); setFollow(false);
     localMap(m).then(setSrc).catch((e) => setErr(String(e)));
     uq<Fit>("SELECT a,b,c,d FROM map_fit WHERE file=$1", m.file).then((r) => setSaved(r[0] ?? null));
   }, [m?.file]);
@@ -73,6 +76,9 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, [m?.file, !!src]);
+
+  const livePos = live && live.zone === zoneid ? live.pos : null;
+  useEffect(() => { if (follow) centerRef.current?.(); }, [follow, livePos?.x, livePos?.z, view.z, !!src]);
 
   if (maps && !maps.length) return <Scatter points={points} />;
   if (!m) return null;
@@ -109,13 +115,17 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
     await uexec("INSERT OR REPLACE INTO map_fit VALUES ($1,$2,$3,$4,$5)", m.file, draft!.a, draft!.b, draft!.c, draft!.d);
     setSaved(draft); setDraft(null); setMarks(null);
   };
-  // Zoom in on your live dot.
+  // Centre the view on your dot (zooming to at least 2x). Used once by Follow, then on every position update.
   const centerOnMe = () => {
     if (!fit || !here || !frame.current) return;
     const fw = frame.current.clientWidth, fh = frame.current.clientHeight;
-    const z = Math.max(view.z, 3), mx = ((fit.a * here.x + fit.b) / W) * fw, my = ((fit.c * here.z + fit.d) / H) * fh;
-    setView(clampView({ z, tx: fw / 2 - mx * z, ty: fh / 2 - my * z }));
+    const z = Math.max(view.z, 2), mx = ((fit.a * here.x + fit.b) / W) * fw, my = ((fit.c * here.z + fit.d) / H) * fh;
+    setView((v) => {
+      const next = clampView({ z, tx: fw / 2 - mx * z, ty: fh / 2 - my * z });
+      return next.z === v.z && Math.abs(next.tx - v.tx) < 0.5 && Math.abs(next.ty - v.ty) < 0.5 ? v : next;
+    });
   };
+  centerRef.current = centerOnMe;
   const reset = async () => { await uexec("DELETE FROM map_fit WHERE file=$1", m.file); setSaved(null); setDraft(null); };
 
   return (
@@ -143,7 +153,7 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
           const q = pan.current;
           if (q && view.z > 1) {
             const dx = e.clientX - q.x, dy = e.clientY - q.y;
-            if (Math.abs(dx) + Math.abs(dy) > 4) q.moved = true;
+            if (Math.abs(dx) + Math.abs(dy) > 4) { q.moved = true; setFollow(false); }
             setView(clampView({ z: view.z, tx: q.tx + dx, ty: q.ty + dy }));
           }
         }}
@@ -151,8 +161,9 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
         <div className="map-zoom" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <button title="Zoom in" onClick={() => zoomAt(1.5)}>+</button>
           <button title="Zoom out" onClick={() => zoomAt(1 / 1.5)}>−</button>
-          {here && fit && <button title="Zoom to me" onClick={centerOnMe}>⌖</button>}
-          {view.z > 1 && <button title="Reset zoom" onClick={() => setView({ z: 1, tx: 0, ty: 0 })}>⟲</button>}
+          {here && fit && <button title={follow ? "Following you (click to stop)" : "Follow me: keep my position centred"}
+            className={follow ? "active-tab" : ""} onClick={() => setFollow(!follow)}>⌖</button>}
+          {view.z > 1 && <button title="Reset zoom" onClick={() => { setFollow(false); setView({ z: 1, tx: 0, ty: 0 }); }}>⟲</button>}
         </div>
         <div ref={box} className="map-content" style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.z})` }}>
         {src ? <img src={src} draggable={false} /> : <div className="muted" style={{ width: 512, height: 512 }}>Downloading map…</div>}
