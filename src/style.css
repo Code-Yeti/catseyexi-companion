@@ -60,6 +60,14 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .target-card { position: fixed; right: 22px; top: 16px; z-index: 40; background: var(--panel); border: 1px solid var(--accent);
   border-radius: 8px; padding: 8px 12px; min-width: 240px; max-width: 360px; box-shadow: 0 6px 24px #000a; font-size: 13px; }
 .target-card .tag { margin: 2px 4px 0 0; }
+.target-card.combat { border: 2px solid var(--bad); min-width: 300px; font-size: 14px; box-shadow: 0 0 18px #ef6b6b55, 0 6px 24px #000a; }
+.target-card.combat b { font-size: 17px; }
+.hp-bar { position: relative; height: 16px; margin: 6px 0; background: var(--line); border-radius: 4px; overflow: hidden; }
+.hp-bar div { height: 100%; background: linear-gradient(90deg, var(--bad), var(--warn)); transition: width .4s ease-out; }
+.hp-bar span { position: absolute; inset: 0; text-align: center; font-size: 11px; line-height: 16px; font-weight: 600; }
+.readying { margin-top: 6px; padding: 4px 8px; border-radius: 4px; background: #f0b84c22; color: var(--warn); font-weight: 600; animation: pulse 1s ease-in-out infinite alternate; }
+.learnable { margin-top: 6px; padding: 4px 8px; border-radius: 4px; background: #c58cff26; color: var(--cx); border: 1px solid var(--cx); }
+@keyframes pulse { to { opacity: .55; } }
 .mark { fill: none; stroke: var(--good); stroke-width: 2; }
 .map-frame { overflow: hidden; }
 .map-content { position: relative; transform-origin: 0 0; }
