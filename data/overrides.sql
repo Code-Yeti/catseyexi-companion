@@ -1,0 +1,6 @@
+-- Hand corrections for CatseyeXI, applied by scripts/build-db.ts after the LSB import and bg-wiki parse,
+-- but before blu_spells is derived. Edit the source tables here. Examples:
+--   Add or fix a CatseyeXI Blue Magic source (name, level, notes, notes_wiki, links-json):
+--     INSERT OR REPLACE INTO cx_blu_spells VALUES ('Sheep Song', 16, 'Also from X in Y', '', '[]');
+--   Remove a mob drop that CatseyeXI doesn't have:
+--     DELETE FROM mob_droplist WHERE dropId = 123 AND itemId = 456;
