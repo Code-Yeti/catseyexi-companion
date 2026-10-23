@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../ctx";
 import { q, uq } from "../db";
 import { pretty } from "../ffxi";
+import { usePrefs, chime } from "../prefs";
 
 type Info = { mobname: string; lo: number; hi: number; cx: number; aggro: number; links: number; truesight: number; family: string | null; blu: string | null };
 type Skill = { id: number; name: string; spell: string | null };
@@ -16,6 +17,8 @@ export default function TargetCard() {
   const [learned, setLearned] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<string>();
   const [skills, setSkills] = useState<Map<number, Skill>>(new Map());
+  const [prefs] = usePrefs();
+  const chimed = useRef(0); // time of the newest move we've already chimed for
 
   const key = t ? `${t.name}|${live!.zone}` : "";
   useEffect(() => {
@@ -37,18 +40,27 @@ export default function TargetCard() {
       .then((r) => setSkills((m) => new Map([...m, ...unknownIds.map((id): [number, Skill] => [id, r.find((x) => x.id === id) ?? { id, name: `Ability #${id}`, spell: null }])])));
   }, [unknownIds.join(",")]);
 
-  if (!t || hidden === key) return null;
   const have = liveLearned ?? learned;
+  const teachesMissing = (m: { skill: number }) => { const s = skills.get(m.skill); return !!s?.spell && !have.has(s.spell); };
+  // Chime once per new move (readying or used) that teaches a spell you're missing, even while the card is hidden.
+  const newest = moves.find(teachesMissing);
+  useEffect(() => {
+    if (!newest || newest.time <= chimed.current) return;
+    if (prefs.soundLearnable && Date.now() / 1000 - newest.time < 10) chime("learnable"); // old moves after a (re)load: no chime
+    chimed.current = newest.time;
+  }, [newest?.time, newest?.skill]);
+
+  if (!t || hidden === key) return null;
   const spells = info?.blu?.split(", ") ?? [];
   const missing = spells.filter((s) => !have.has(s));
   const combat = !!live?.engaged;
   const now = Date.now() / 1000;
   const readying = moves[0]?.ready && now - moves[0].time < 6 ? skills.get(moves[0].skill) : undefined;
   const used = moves.filter((m) => !m.ready).slice(0, 4);
-  const learnable = used.map((m) => skills.get(m.skill)).find((s) => s?.spell && !have.has(s.spell));
+  const learnable = skills.get(used.find(teachesMissing)?.skill ?? -1);
 
   return (
-    <div className={combat ? "target-card combat" : "target-card"}>
+    <div className={`target-card ${prefs.cardCorner}${combat ? " combat" : ""}`} style={{ scale: String(prefs.cardScale) }}>
       <div className="row" style={{ margin: 0, justifyContent: "space-between" }}>
         <b className="link" onClick={() => info && go({ name: "mob", mob: info.mobname })}>{combat && "⚔ "}{t.name}</b>
         <span className="link muted" onClick={() => setHidden(key)}>✕</span>

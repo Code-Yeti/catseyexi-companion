@@ -57,9 +57,13 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .toast { background: var(--panel); border: 1px solid var(--good); border-radius: 8px; padding: 10px 14px; min-width: 230px;
   box-shadow: 0 6px 24px #000a; cursor: pointer; animation: toast-in .25s ease-out; }
 @keyframes toast-in { from { transform: translateY(12px); opacity: 0; } }
-.target-card { position: fixed; right: 22px; top: 16px; z-index: 40; background: var(--panel); border: 1px solid var(--accent);
+.target-card { position: fixed; z-index: 40; background: var(--panel); border: 1px solid var(--accent);
   border-radius: 8px; padding: 8px 12px; min-width: 240px; max-width: 360px; box-shadow: 0 6px 24px #000a; font-size: 13px; }
 .target-card .tag { margin: 2px 4px 0 0; }
+.target-card.top-right { right: 22px; top: 16px; transform-origin: top right; }
+.target-card.top-left { left: 192px; top: 16px; transform-origin: top left; }
+.target-card.bottom-right { right: 22px; bottom: 16px; transform-origin: bottom right; }
+.target-card.bottom-left { left: 192px; bottom: 16px; transform-origin: bottom left; }
 .target-card.combat { border: 2px solid var(--bad); min-width: 300px; font-size: 14px; box-shadow: 0 0 18px #ef6b6b55, 0 6px 24px #000a; }
 .target-card.combat b { font-size: 17px; }
 .hp-bar { position: relative; height: 16px; margin: 6px 0; background: var(--line); border-radius: 4px; overflow: hidden; }

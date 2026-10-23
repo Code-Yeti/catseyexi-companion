@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { q, uexec } from "../db";
 import { downloadedCount, localMap, type ZoneMapRow } from "../maps";
 import { useApp } from "../ctx";
+import { usePrefs, chime, type Corner } from "../prefs";
 
 export default function Settings() {
   const [maps, setMaps] = useState<ZoneMapRow[]>([]);
   const [have, setHave] = useState(0);
   const [progress, setProgress] = useState<string>();
   const { live, char } = useApp();
+  const [prefs, setPrefs] = usePrefs();
   // Axis sanity check: the addon's position should match catseyexi.com's (same zone, within a few yalms of movement).
   const axisOk = live && char && live.zone === char.pos_zone
     ? Math.hypot(live.pos.x - char.pos_x, live.pos.z - char.pos_z) < 150 : undefined;
@@ -44,6 +46,34 @@ export default function Settings() {
           <code>/addon load catseyecompanion ashita</code>, or add it on the VanaCore launcher's Addons page so it loads every time.
         </div>
       )}
+
+      <h2>Target card</h2>
+      <p className="muted">The card that shows your in-game target (needs the addon).</p>
+      <div className="row">
+        <span>Position</span>
+        {(["top-left", "top-right", "bottom-left", "bottom-right"] as Corner[]).map((c) => (
+          <button key={c} className={prefs.cardCorner === c ? "active-tab" : ""} onClick={() => setPrefs({ cardCorner: c })}>
+            {c.replace("-", " ")}
+          </button>
+        ))}
+      </div>
+      <div className="row">
+        <span>Size</span>
+        <input type="range" min={1} max={2} step={0.05} value={prefs.cardScale} onChange={(e) => setPrefs({ cardScale: Number(e.target.value) })} />
+        <span className="muted">{Math.round(prefs.cardScale * 100)}%</span>
+      </div>
+
+      <h2>Sounds</h2>
+      <div className="row">
+        <label><input type="checkbox" checked={prefs.soundLearnable} onChange={(e) => setPrefs({ soundLearnable: e.target.checked })} />
+          {" "}When your target readies or uses a move that teaches a spell you're missing</label>
+        <button onClick={() => chime("learnable")}>Test</button>
+      </div>
+      <div className="row">
+        <label><input type="checkbox" checked={prefs.soundLearned} onChange={(e) => setPrefs({ soundLearned: e.target.checked })} />
+          {" "}When you learn a spell</label>
+        <button onClick={() => chime("learned")}>Test</button>
+      </div>
 
       <h2>Zone maps</h2>
       <p className="muted">

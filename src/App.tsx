@@ -6,6 +6,7 @@ import { getKv, setKv, q, uq, uexec } from "./db";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { readLive, isFresh, storageIndex, type Live } from "./live";
 import TargetCard from "./components/TargetCard";
+import { usePrefs, chime } from "./prefs";
 import CharacterPage from "./pages/Character";
 import Search from "./pages/Search";
 import Mob from "./pages/Mob";
@@ -29,6 +30,7 @@ const INVENTORY_EVERY = 5;          // ticks (~15 min); inventory changes slowly
 
 export default function App() {
   const [page, setPage] = useState<Page>({ name: "character" });
+  const [prefs] = usePrefs();
   const [history, setHistory] = useState<Page[]>([]);
   const [charId, setCharId] = useState<string>();
   const [char, setChar] = useState<Character>();
@@ -176,6 +178,7 @@ export default function App() {
       const seen = Number(await getKv("lastLearnEvent") ?? 0);
       const fresh = live.events!.filter((e) => e.time > seen);
       if (!fresh.length) return;
+      if (prefs.soundLearned) chime("learned");
       for (const e of fresh) {
         const name = live.bluKnown?.find(([id]) => id === e.spell)?.[1]
           ?? (await q<{ name: string }>("SELECT name FROM blu_spells WHERE spellid=$1", e.spell))[0]?.name ?? `Spell #${e.spell}`;
