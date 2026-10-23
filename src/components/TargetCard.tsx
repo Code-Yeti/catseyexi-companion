@@ -29,7 +29,16 @@ export default function TargetCard() {
     if (!liveLearned) uq<{ name: string }>("SELECT name FROM blu_learned").then((r) => setLearned(new Set(r.map((x) => x.name))));
   }, [key]);
 
-  const moves = (live?.moves ?? []).filter((m) => t && m.actor === t.id).reverse(); // newest first
+  // Server ids belong to the spawn slot, so a respawn (or the same mob in a later fight) reuses them:
+  // only count moves since you picked this target or last drew weapons on it.
+  const [since, setSince] = useState(0);
+  const prev = useRef<{ id?: number; engaged: boolean }>({ engaged: false });
+  useEffect(() => {
+    const engaged = !!live?.engaged;
+    if (t?.id !== prev.current.id || (engaged && !prev.current.engaged)) setSince(Date.now() / 1000 - 2);
+    prev.current = { id: t?.id, engaged };
+  }, [t?.id, live?.engaged]);
+  const moves = (live?.moves ?? []).filter((m) => t && m.actor === t.id && m.time >= since).reverse(); // newest first
   const unknownIds = [...new Set(moves.map((m) => m.skill))].filter((id) => !skills.has(id));
   useEffect(() => {
     if (!unknownIds.length) return;
