@@ -21,7 +21,22 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   const [draft, setDraft] = useState<Fit | null>(null); // non-null while fitting
   const [cloud, setCloud] = useState<{ x: number; z: number }[]>([]);
   const drag = useRef<{ x: number; y: number; fit: Fit } | null>(null);
-  const box = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);   // the (zoomed) map content; toImg works through its scaled rect
+  const frame = useRef<HTMLDivElement>(null); // fixed viewport around it
+  // View zoom/pan (CSS transform on the content, origin top-left). tx/ty are in frame pixels.
+  const [view, setView] = useState({ z: 1, tx: 0, ty: 0 });
+  const pan = useRef<{ x: number; y: number; tx: number; ty: number; moved: boolean } | null>(null);
+  const dragged = useRef(false);
+  const clampView = (v: { z: number; tx: number; ty: number }) => {
+    const fw = frame.current?.clientWidth ?? 0, fh = frame.current?.clientHeight ?? 0;
+    const z = Math.min(8, Math.max(1, v.z));
+    return { z, tx: Math.min(0, Math.max(fw - fw * z, v.tx)), ty: Math.min(0, Math.max(fh - fh * z, v.ty)) };
+  };
+  const zoomAt = (f: number, cx?: number, cy?: number) => setView((v) => {
+    const fw = frame.current?.clientWidth ?? 0, fh = frame.current?.clientHeight ?? 0;
+    const x = cx ?? fw / 2, y = cy ?? fh / 2, z = Math.min(8, Math.max(1, v.z * f)), k = z / v.z;
+    return clampView({ z, tx: x - (x - v.tx) * k, ty: y - (y - v.ty) * k });
+  });
 
   useEffect(() => {
     q<ZoneMapRow>("SELECT * FROM zone_maps WHERE zoneid=$1 ORDER BY ord", zoneid).then((m) => { setMaps(m); setFloor(0); });
@@ -31,33 +46,40 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   const m = maps?.[floor];
   useEffect(() => {
     if (!m) return;
-    setSrc(undefined); setErr(undefined); setDraft(null); setMarks(null);
+    setSrc(undefined); setErr(undefined); setDraft(null); setMarks(null); setView({ z: 1, tx: 0, ty: 0 });
     localMap(m).then(setSrc).catch((e) => setErr(String(e)));
     uq<Fit>("SELECT a,b,c,d FROM map_fit WHERE file=$1", m.file).then((r) => setSaved(r[0] ?? null));
   }, [m?.file]);
 
-  // Wheel = scale while fitting. React's onWheel is passive and can't stop the page scrolling, so attach natively.
-  const fitting = draft !== null;
+  // Wheel: scales the dots while fitting, otherwise zooms the map toward the cursor. React's onWheel is passive and
+  // can't stop the page scrolling, so attach natively.
+  const fittingRef = useRef(false);
+  fittingRef.current = draft !== null && !marks;
   useEffect(() => {
-    const el = box.current;
-    if (!el || !fitting) return;
+    const el = frame.current;
+    if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const rect = el.getBoundingClientRect(), W = m!.w, H = m!.h;
-      const p = { x: ((e.clientX - rect.left) / rect.width) * W, y: ((e.clientY - rect.top) / rect.height) * H };
-      const f = e.deltaY < 0 ? 1.05 : 1 / 1.05;
-      setDraft((d) => d && { a: d.a * f, c: d.c * f, b: p.x - f * (p.x - d.b), d: p.y - f * (p.y - d.d) });
+      if (fittingRef.current) {
+        const rect = box.current!.getBoundingClientRect(), W = m!.w, H = m!.h;
+        const p = { x: ((e.clientX - rect.left) / rect.width) * W, y: ((e.clientY - rect.top) / rect.height) * H };
+        const f = e.deltaY < 0 ? 1.05 : 1 / 1.05;
+        setDraft((d) => d && { a: d.a * f, c: d.c * f, b: p.x - f * (p.x - d.b), d: p.y - f * (p.y - d.d) });
+      } else {
+        const fr = el.getBoundingClientRect();
+        zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX - fr.left, e.clientY - fr.top);
+      }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [fitting, m?.file]);
+  }, [m?.file, !!src]);
 
   if (maps && !maps.length) return <Scatter points={points} />;
   if (!m) return null;
 
   const auto: Fit | null = m.a != null ? { a: m.a, b: m.b!, c: m.c!, d: m.d! } : null;
   const fit = draft ?? saved ?? auto;
-  const W = m.w, H = m.h, r = W / 110;
+  const W = m.w, H = m.h, r = W / 110 / Math.sqrt(view.z); // dots shrink a little as you zoom in
 
   const startFit = () => {
     if (fit) return setDraft(fit);
@@ -75,6 +97,7 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   // Live position (addon, ~1s) beats the catseyexi.com position (3 min).
   const here = live && live.zone === zoneid ? live.pos : char?.pos_zone === zoneid ? { x: char.pos_x, z: char.pos_z } : null;
   const mark = (e: React.MouseEvent) => {
+    if (dragged.current) { dragged.current = false; return; } // that was a pan, not a click
     if (!marks || !live || live.zone !== zoneid) return;
     const p = toImg(e);
     const next = [...marks, { x: live.pos.x, z: live.pos.z, px: p.x, py: p.y }];
@@ -85,6 +108,13 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   const save = async () => {
     await uexec("INSERT OR REPLACE INTO map_fit VALUES ($1,$2,$3,$4,$5)", m.file, draft!.a, draft!.b, draft!.c, draft!.d);
     setSaved(draft); setDraft(null); setMarks(null);
+  };
+  // Zoom in on your live dot.
+  const centerOnMe = () => {
+    if (!fit || !here || !frame.current) return;
+    const fw = frame.current.clientWidth, fh = frame.current.clientHeight;
+    const z = Math.max(view.z, 3), mx = ((fit.a * here.x + fit.b) / W) * fw, my = ((fit.c * here.z + fit.d) / H) * fh;
+    setView(clampView({ z, tx: fw / 2 - mx * z, ty: fh / 2 - my * z }));
   };
   const reset = async () => { await uexec("DELETE FROM map_fit WHERE file=$1", m.file); setSaved(null); setDraft(null); };
 
@@ -100,10 +130,31 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
         </div>
       )}
       {err && <div className="error">Couldn't download map: {err}</div>}
-      <div className="map-frame" ref={box} style={{ cursor: marks ? "crosshair" : draft ? "move" : "default" }} onClick={mark}
-        onPointerDown={(e) => { if (draft && !marks) { drag.current = { ...toImg(e), fit: draft }; e.currentTarget.setPointerCapture(e.pointerId); } }}
-        onPointerMove={(e) => { const g = drag.current; if (g) { const p = toImg(e); setDraft({ ...g.fit, b: g.fit.b + p.x - g.x, d: g.fit.d + p.y - g.y }); } }}
-        onPointerUp={() => (drag.current = null)}>
+      <div className="map-frame" ref={frame} onClick={mark}
+        style={{ cursor: marks ? "crosshair" : draft ? "move" : view.z > 1 ? "grab" : "default" }}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          if (draft && !marks) drag.current = { ...toImg(e), fit: draft };      // fitting: drag moves the dots
+          else pan.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty, moved: false }; // else: pan the view
+        }}
+        onPointerMove={(e) => {
+          const g = drag.current;
+          if (g) { const p = toImg(e); setDraft({ ...g.fit, b: g.fit.b + p.x - g.x, d: g.fit.d + p.y - g.y }); return; }
+          const q = pan.current;
+          if (q && view.z > 1) {
+            const dx = e.clientX - q.x, dy = e.clientY - q.y;
+            if (Math.abs(dx) + Math.abs(dy) > 4) q.moved = true;
+            setView(clampView({ z: view.z, tx: q.tx + dx, ty: q.ty + dy }));
+          }
+        }}
+        onPointerUp={() => { dragged.current = !!pan.current?.moved; drag.current = null; pan.current = null; }}>
+        <div className="map-zoom" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <button title="Zoom in" onClick={() => zoomAt(1.5)}>+</button>
+          <button title="Zoom out" onClick={() => zoomAt(1 / 1.5)}>−</button>
+          {here && fit && <button title="Zoom to me" onClick={centerOnMe}>⌖</button>}
+          {view.z > 1 && <button title="Reset zoom" onClick={() => setView({ z: 1, tx: 0, ty: 0 })}>⟲</button>}
+        </div>
+        <div ref={box} className="map-content" style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.z})` }}>
         {src ? <img src={src} draggable={false} /> : <div className="muted" style={{ width: 512, height: 512 }}>Downloading map…</div>}
         {fit && (
           <svg viewBox={`0 0 ${W} ${H}`} className="map-overlay">
@@ -119,6 +170,7 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
             {marks.map((q, i) => <circle key={i} cx={q.px} cy={q.py} r={r * 1.2} className="mark" />)}
           </svg>
         )}
+        </div>
       </div>
       <div className="row muted">
         {marks ? (

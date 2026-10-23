@@ -61,3 +61,7 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
   border-radius: 8px; padding: 8px 12px; min-width: 240px; max-width: 360px; box-shadow: 0 6px 24px #000a; font-size: 13px; }
 .target-card .tag { margin: 2px 4px 0 0; }
 .mark { fill: none; stroke: var(--good); stroke-width: 2; }
+.map-frame { overflow: hidden; }
+.map-content { position: relative; transform-origin: 0 0; }
+.map-zoom { position: absolute; top: 6px; right: 6px; z-index: 3; display: flex; flex-direction: column; gap: 4px; }
+.map-zoom button { width: 30px; height: 30px; padding: 0; font-size: 16px; background: #1b1e27dd; }
