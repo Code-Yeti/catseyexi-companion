@@ -150,12 +150,13 @@ export default function App() {
   const [liveLearned, setLiveLearned] = useState<Set<string> | null>(null);
   const learnedKey = useRef("");
   useEffect(() => {
-    const t = setInterval(async () => setLiveRaw(await readLive()), 1000);
+    // A failed read (the addon swaps the file in place) keeps the last data; isFresh() still drops it after STALE_SECONDS.
+    const t = setInterval(async () => { const l = await readLive(); setLiveRaw((prev) => l ?? prev); }, 1000);
     return () => clearInterval(t);
   }, []);
   // Learned Blue Magic from the client -> our spell names, mirrored into user.db so it survives without the addon.
   useEffect(() => {
-    if (!live?.bluKnown) { setLiveLearned(null); return; }
+    if (!live?.bluKnown) { setLiveLearned(null); learnedKey.current = ""; return; } // recompute when the addon comes back
     const key = live.bluKnown.map((k) => k[0]).join(",");
     if (key === learnedKey.current) return;
     learnedKey.current = key;

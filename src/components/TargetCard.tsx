@@ -26,8 +26,10 @@ export default function TargetCard() {
     const mobname = t.name.replace(/ /g, "_");
     q<Info>(`SELECT mobname, coalesce(cx_lo, lo) lo, coalesce(cx_hi, hi) hi, cx_lo IS NOT NULL cx, aggro, links, truesight, family, blu
              FROM mob_index WHERE mobname=$1 ORDER BY zoneid=$2 DESC LIMIT 1`, mobname, live!.zone).then((r) => setInfo(r[0] ?? null));
-    if (!liveLearned) uq<{ name: string }>("SELECT name FROM blu_learned").then((r) => setLearned(new Set(r.map((x) => x.name))));
   }, [key]);
+  useEffect(() => {
+    if (!liveLearned) uq<{ name: string }>("SELECT name FROM blu_learned").then((r) => setLearned(new Set(r.map((x) => x.name))));
+  }, [liveLearned]);
 
   // Server ids belong to the spawn slot, so a respawn (or the same mob in a later fight) reuses them:
   // only count moves since you picked this target or last drew weapons on it.
