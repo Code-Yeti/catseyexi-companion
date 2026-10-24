@@ -105,3 +105,13 @@ export function decodeLogs(logs: Record<string, string>) {
     toau: au ? u32(au, 20) : undefined, wotg: au ? u32(au, 24) : undefined } : null;
   return { quests, missionsDone, current, have: Object.keys(logs).length > 0 };
 }
+
+// EXP/limit points gained between two addon readings. Handles level-ups (cur wraps to 0), merit rollovers
+// (limit wraps at 10000 and merits go up), deaths (EXP lost: counts as 0) and spending merits. null = job changed.
+export type ExpSnap = { job: number; lvl: number; cur: number; need: number; limit: number; merits: number };
+export function expGain(a: ExpSnap, b: ExpSnap): number | null {
+  if (a.job !== b.job) return null;
+  const exp = b.lvl === a.lvl ? b.cur - a.cur : b.lvl === a.lvl + 1 ? a.need - a.cur + b.cur : 0;
+  const limit = b.limit - a.limit + (b.merits > a.merits ? (b.merits - a.merits) * 10000 : 0);
+  return Math.max(0, exp) + Math.max(0, limit);
+}

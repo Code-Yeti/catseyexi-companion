@@ -14,7 +14,8 @@ export type Live = {
   bluPoints?: { spent: number; max: number };
   storage?: Record<string, [number, number][]>; // container -> [itemId, count]
   events?: { spell: number; zone: number; mob: string | null; time: number }[];
-  engaged?: boolean;                        // player has weapons drawn
+  exp?: { cur: number; need: number; limit: number; merits: number; meritsMax: number; limitMode: boolean };
+  engaged?: boolean;                       // player has weapons drawn
   moves?: { actor: number; skill: number; ready: boolean; time: number }[]; // monster TP moves seen (mob_skill_id)
   logs?: Record<string, string>;            // 0x056 port -> 32 bytes hex
 };

@@ -6,6 +6,7 @@ import { getKv, setKv, q, uq, uexec } from "./db";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { readLive, isFresh, storageIndex, type Live } from "./live";
 import TargetCard from "./components/TargetCard";
+import ExpBar from "./components/ExpBar";
 import { usePrefs, chime } from "./prefs";
 import CharacterPage from "./pages/Character";
 import Search from "./pages/Search";
@@ -228,6 +229,7 @@ export default function App() {
               ))}
             </div>
           )}
+          <ExpBar />
           {char && <div className="who">{char.charname}</div>}
         </nav>
         <main>

@@ -42,3 +42,13 @@ assert.deepEqual(d.quests.map((q) => `${q.log}:${q.id}:${q.done ? "done" : "acti
 assert.deepEqual(d.missionsDone, [{ log: 0, id: 0 }, { log: 1, id: 2 }]);
 assert.equal(d.current?.nationMission, 5);
 console.log("quest log decode ok");
+
+import { expGain, type ExpSnap } from "../src/ffxi.ts";
+const snap = (o: Partial<ExpSnap>): ExpSnap => ({ job: 16, lvl: 66, cur: 1000, need: 20000, limit: 0, merits: 0, ...o });
+assert.equal(expGain(snap({}), snap({ cur: 1300 })), 300);
+assert.equal(expGain(snap({ cur: 19900 }), snap({ lvl: 67, cur: 150, need: 21000 })), 250); // level-up
+assert.equal(expGain(snap({}), snap({ cur: 400 })), 0);                                  // death: EXP lost
+assert.equal(expGain(snap({ limit: 9800, merits: 3 }), snap({ limit: 200, merits: 4 })), 400); // merit rollover
+assert.equal(expGain(snap({ limit: 500, merits: 4 }), snap({ limit: 500, merits: 2 })), 0);     // merits spent
+assert.equal(expGain(snap({}), snap({ job: 1 })), null);
+console.log("exp gain ok");
