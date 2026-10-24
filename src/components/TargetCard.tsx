@@ -59,6 +59,17 @@ export default function TargetCard() {
     chimed.current = newest.time;
   }, [newest?.time, newest?.skill]);
 
+  // Animate size changes: CSS can't transition height:auto, so measure the content and set the card's height from it.
+  const inner = useRef<HTMLDivElement>(null);
+  const [h, setH] = useState<number>();
+  const shown = !!t && hidden !== key;
+  useEffect(() => {
+    if (!shown || !inner.current) return setH(undefined);
+    const ro = new ResizeObserver(() => setH(inner.current?.offsetHeight)); // offsetHeight ignores the scale setting
+    ro.observe(inner.current);
+    return () => ro.disconnect();
+  }, [shown]);
+
   if (!t || hidden === key) return null;
   const spells = info?.blu?.split(", ") ?? [];
   const missing = spells.filter((s) => !have.has(s));
@@ -69,7 +80,8 @@ export default function TargetCard() {
   const learnable = skills.get(used.find(teachesMissing)?.skill ?? -1);
 
   return (
-    <div className={`target-card ${prefs.cardCorner}${combat ? " combat" : ""}`} style={{ scale: String(prefs.cardScale) }}>
+    <div className={`target-card ${prefs.cardCorner}${combat ? " combat" : ""}`} style={{ scale: String(prefs.cardScale), height: h == null ? undefined : h + 2 }}>
+      <div ref={inner} className="tc-inner">
       <div className="row" style={{ margin: 0, justifyContent: "space-between" }}>
         <b className="link" onClick={() => info && go({ name: "mob", mob: info.mobname })}>{combat && "⚔ "}{t.name}</b>
         <span className="link muted" onClick={() => setHidden(key)}>✕</span>
@@ -106,6 +118,7 @@ export default function TargetCard() {
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }

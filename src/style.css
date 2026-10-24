@@ -58,8 +58,9 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
   box-shadow: 0 6px 24px #000a; cursor: pointer; animation: toast-in .25s ease-out; }
 @keyframes toast-in { from { transform: translateY(12px); opacity: 0; } }
 .target-card { position: fixed; z-index: 40; background: var(--panel); border: 1px solid var(--accent);
-  border-radius: 8px; padding: 8px 12px; min-width: 240px; max-width: 360px; box-shadow: 0 6px 24px #000a; font-size: 13px;
-  animation: card-in .3s ease-out; transition: border-color .35s, box-shadow .35s, min-width .35s ease-out, font-size .35s; }
+  border-radius: 8px; min-width: 240px; max-width: 360px; box-shadow: 0 6px 24px #000a; font-size: 13px; overflow: hidden;
+  animation: card-in .3s ease-out; transition: border-color .35s, box-shadow .35s, min-width .35s ease-out, font-size .35s, height .3s ease-out; }
+.target-card .tc-inner { padding: 8px 12px; }
 .target-card b { transition: font-size .35s; }
 @keyframes card-in { from { opacity: 0; translate: 0 -10px; } }
 .target-card.bottom-right, .target-card.bottom-left { animation-name: card-in-up; }
