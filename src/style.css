@@ -102,3 +102,4 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .exp-bar .bar { height: 6px; margin: 5px 0 3px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .exp-bar .bar div { height: 100%; background: var(--accent); transition: width .6s ease-out; }
 .exp-bar .bar.limit div { background: var(--cx); }
+.item-icon { vertical-align: middle; margin-right: 6px; image-rendering: pixelated; }

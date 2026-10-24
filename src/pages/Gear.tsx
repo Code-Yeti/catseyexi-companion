@@ -3,6 +3,7 @@ import { useApp } from "../ctx";
 import { cx, getItem } from "../catseye";
 import { q, uq, uexec } from "../db";
 import { JOBS, LEVEL_CAP, SLOTS, jobMask, jobName, like, pretty, shownMod } from "../ffxi";
+import ItemIcon from "../components/ItemIcon";
 
 type Set_ = { id?: number; job: string; name: string; slots: Record<string, number> };
 type Opt = { itemId: number; name: string; level: number; cx: boolean };
@@ -92,7 +93,7 @@ export default function Gear() {
         </div>
         <div>
           <h2>Still need ({need.length})</h2>
-          {need.map((id) => <div key={id}><span className="link" onClick={() => go({ name: "item", id })}>{names[id] ?? `#${id}`}</span></div>)}
+          {need.map((id) => <div key={id}><ItemIcon id={id} /><span className="link" onClick={() => go({ name: "item", id })}>{names[id] ?? `#${id}`}</span></div>)}
           {!char && <div className="muted">Load your character to see what you own.</div>}
         </div>
       </div>

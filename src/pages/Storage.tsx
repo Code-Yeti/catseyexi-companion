@@ -3,6 +3,7 @@ import { useApp } from "../ctx";
 import { q } from "../db";
 import { pretty } from "../ffxi";
 import { CONTAINERS } from "../live";
+import ItemIcon from "../components/ItemIcon";
 
 // Every bag, from the game addon. Without it, falls back to catseyexi.com's owned-items list (no bags or counts).
 export default function Storage() {
@@ -32,7 +33,7 @@ export default function Storage() {
         <p className="muted">Connect the game addon (Settings) to see every bag with counts. This is catseyexi.com's owned-items list.</p>
         <input placeholder="Search items" value={text} onChange={(e) => setText(e.target.value)} style={{ width: 300 }} />
         <table style={{ marginTop: 10 }}><tbody>
-          {list.map((id) => <tr key={id} className="click" onClick={() => go({ name: "item", id })}><td>{label(id)}</td></tr>)}
+          {list.map((id) => <tr key={id} className="click" onClick={() => go({ name: "item", id })}><td><ItemIcon id={id} />{label(id)}</td></tr>)}
         </tbody></table>
       </div>
     );
@@ -62,7 +63,7 @@ export default function Storage() {
               <table style={{ marginTop: 6 }}><tbody>
                 {items.map(([id, count], i) => (
                   <tr key={id + "-" + i} className="click" onClick={() => go({ name: "item", id })}>
-                    <td>{label(id)}</td><td className="muted" style={{ width: 60, textAlign: "right" }}>{count > 1 ? `×${count}` : ""}</td>
+                    <td><ItemIcon id={id} />{label(id)}</td><td className="muted" style={{ width: 60, textAlign: "right" }}>{count > 1 ? `×${count}` : ""}</td>
                   </tr>
                 ))}
                 {!items.length && <tr><td className="muted">Empty</td></tr>}

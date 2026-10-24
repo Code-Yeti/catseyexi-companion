@@ -20,12 +20,20 @@ export default function TargetCard() {
   const [prefs] = usePrefs();
   const chimed = useRef(0); // time of the newest move we've already chimed for
 
-  const key = t ? `${t.name}|${live!.zone}` : "";
+  const key = t ? `${t.id}|${t.name}|${live!.zone}` : "";
   useEffect(() => {
     if (!t) return setInfo(undefined);
-    const mobname = t.name.replace(/ /g, "_");
-    q<Info>(`SELECT mobname, coalesce(cx_lo, lo) lo, coalesce(cx_hi, hi) hi, cx_lo IS NOT NULL cx, aggro, links, truesight, family, blu
-             FROM mob_index WHERE mobname=$1 ORDER BY zoneid=$2 DESC LIMIT 1`, mobname, live!.zone).then((r) => setInfo(r[0] ?? null));
+    let current = true; // ignore answers that arrive after you've switched targets
+    const cols = "mi.mobname, coalesce(cx_lo, lo) lo, coalesce(cx_hi, hi) hi, cx_lo IS NOT NULL cx, aggro, links, truesight, family, blu";
+    // Exact: the client's server id is LSB's mobid (CatseyeXI forked LSB's SQL). Fallback: the name, preferring this zone.
+    (async () => {
+      const byId = await q<Info>(`SELECT ${cols} FROM mob_spawn_points sp JOIN mob_groups g ON g.groupid = sp.groupid AND g.zoneid = $2
+        JOIN mob_index mi ON mi.poolid = g.poolid AND mi.zoneid = g.zoneid WHERE sp.mobid = $1 LIMIT 1`, t.id, (t.id >> 12) & 4095); // zone is encoded in the id
+      const r = byId.length ? byId : await q<Info>(`SELECT ${cols} FROM mob_index mi WHERE lower(mobname) = lower($1) ORDER BY zoneid = $2 DESC LIMIT 1`,
+        t.name.replace(/ /g, "_"), live!.zone);
+      if (current) setInfo(r[0] ?? null);
+    })();
+    return () => { current = false; };
   }, [key]);
   useEffect(() => {
     if (!liveLearned) uq<{ name: string }>("SELECT name FROM blu_learned").then((r) => setLearned(new Set(r.map((x) => x.name))));

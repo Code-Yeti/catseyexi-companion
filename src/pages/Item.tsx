@@ -3,6 +3,7 @@ import { useApp } from "../ctx";
 import { getItem, type CxItem } from "../catseye";
 import { q } from "../db";
 import { DROP_TYPE, JOBS, pretty, shownMod, wikiUrl } from "../ffxi";
+import ItemIcon from "../components/ItemIcon";
 
 export default function Item({ id }: { id: number }) {
   const { go, owned, where } = useApp();
@@ -36,7 +37,7 @@ export default function Item({ id }: { id: number }) {
 
   return (
     <div>
-      <h1>{title} {owned.has(id) && <span className="tag own">owned{where.get(id) ? `: ${where.get(id)!.join(", ")}` : ""}</span>} <a className="tag" href={wikiUrl(title)} target="_blank">bg-wiki</a></h1>
+      <h1><ItemIcon id={id} size={32} />{title} {owned.has(id) && <span className="tag own">owned{where.get(id) ? `: ${where.get(id)!.join(", ")}` : ""}</span>} <a className="tag" href={wikiUrl(title)} target="_blank">bg-wiki</a></h1>
       <div className="card">
         {cxItem ? <span className="tag cx">CatseyeXI data</span> : <span className="tag lsb">LSB data{cxErr ? " (CatseyeXI offline)" : ""}</span>}
         {cxItem?.item.level ? <div>Lv{cxItem.item.level} {jobs.length === 22 ? "All Jobs" : jobs.join(" / ")}</div> : null}

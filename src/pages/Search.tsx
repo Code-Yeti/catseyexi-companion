@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "../ctx";
 import { q } from "../db";
 import { like, pretty } from "../ffxi";
+import ItemIcon from "../components/ItemIcon";
 
 type Hit = { kind: "item" | "mob" | "spell"; id: string; name: string; sub: string };
 
@@ -44,7 +45,7 @@ export default function Search({ initial = "" }: { initial?: string }) {
           {hits.map((h) => (
             <tr key={h.kind + h.id} className="click" onClick={() => open(h)}>
               <td style={{ width: 60 }}><span className="tag">{h.kind}</span></td>
-              <td>{h.name}</td>
+              <td>{h.kind === "item" && <ItemIcon id={Number(h.id)} />}{h.name}</td>
               <td className="muted">{h.sub}</td>
             </tr>
           ))}

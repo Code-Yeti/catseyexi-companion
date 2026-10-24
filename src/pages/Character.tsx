@@ -3,6 +3,7 @@ import { useApp } from "../ctx";
 import { parseCharId } from "../catseye";
 import { q } from "../db";
 import { JOBS, LEVEL_CAP, NATIONS, SLOTS, accountLabel, jobName, pretty } from "../ffxi";
+import ItemIcon from "../components/ItemIcon";
 
 export default function CharacterPage() {
   const { char, charId, owned, fetchedAt, stale, loadChar, go } = useApp();
@@ -71,7 +72,7 @@ export default function CharacterPage() {
               {SLOTS.filter(([k]) => char.equipment[k]).map(([k, label]) => (
                 <tr key={k} className="click" onClick={() => go({ name: "item", id: char.equipment[k] })}>
                   <td className="muted" style={{ width: 80 }}>{label}</td>
-                  <td>{names[char.equipment[k]] ?? `#${char.equipment[k]}`}</td>
+                  <td><ItemIcon id={char.equipment[k]} />{names[char.equipment[k]] ?? `#${char.equipment[k]}`}</td>
                 </tr>
               ))}
             </tbody>

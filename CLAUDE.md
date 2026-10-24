@@ -10,7 +10,7 @@ A Tauri v2 + React + TypeScript desktop companion for the CatseyeXI FFXI private
 
 - `npm run build-db`: regenerate `src-tauri/resources/reference.db` and `data/diff-report.md`. Runs `scripts/build-db.ts` directly on Node 24, using built-in TS stripping and `node:sqlite`, with no extra deps. It ends with assert self-checks, which serve as the data tests. Needs the LSB checkout at `../FFXI-lsb` (or `LSB_SQL=<path to sql/>`) and network access to bg-wiki.
 - `npm run tauri dev`: run the app. Rust lives in `~/.cargo/bin`; add it to PATH if the shell doesn't have it.
-- `npm run tauri build`: build the MSI under `src-tauri/target/release/bundle/msi/`.
+- `npm run tauri build -- --no-bundle`: build just `src-tauri/target/release/ffxi-companion.exe` (the normal dev loop). `npm run tauri build` also makes the MSI under `src-tauri/target/release/bundle/msi/`; that is slow, so only for releases.
 - `npx tsc --noEmit`: typecheck the frontend.
 - `node scripts/test-traits.ts`: assert checks for the pure logic in `src/ffxi.ts`: the trait solver, `fitMap`, `activeTraits`, the quest-log decoder `decodeLogs`, and `expGain` (EXP/merit rate tracking).
 - Repos: this whole project is **private** at `Code-Yeti/catseyexi-companion` (remote `origin`). The addon alone is **public** at `Code-Yeti/catseyecompanion`, for CatseyeXI staff review. Publish addon changes with `git subtree push --prefix=addon/catseyecompanion https://github.com/Code-Yeti/catseyecompanion.git main`. Never push anything else there. Commits use the noreply email set in this repo's git config.
@@ -48,6 +48,8 @@ A Tauri v2 + React + TypeScript desktop companion for the CatseyeXI FFXI private
 - Window size, position and monitor are saved by `tauri-plugin-window-state` (`.window-state.json` in AppData) on a normal close. Close the app gracefully before a rebuild (`CloseMainWindow`), not with a force-kill, or that state is lost.
 - Dev builds can't start while the installed app is running, because WebView2 refuses one profile with different debug args. Set `WEBVIEW2_USER_DATA_FOLDER` to a scratch folder for `tauri dev`.
 - Friends are stored as char ids in `user.db.friends` and polled in `App.tsx` every 3 min, sequentially. Keep the rate low: it hits catseyexi.com once per friend. An in-app popup (bottom-right, `toast` in `App.tsx`, plus a taskbar flash via `requestUserAttention`) fires only on an offline→online change between two *live* checks, never on startup. Windows system toasts were tried and dropped: unregistered apps show as "Windows PowerShell".
+- Item icons are hotlinked from `static.ffxiah.com/images/icon/{itemid}.png` (`ItemIcon`), as catseyexi.com does. Not bundled.
+- Target card matches the target by server id: client id = LSB `mob_spawn_points.mobid`, zone = `(id >> 12) & 4095`. Name match is only the fallback.
 - `accountType` 1 = Crystal Warrior (the site hides AH and delivery for it). Other values aren't documented.
 - `src/ctx.ts` holds the React context. Don't name it `app.ts`: it collides with `App.tsx` on case-insensitive Windows.
 - **Zone maps** come from bg-wiki: Square Enix maps with fan annotations, so they're not public domain and are never bundled. `seedMaps` in `build-db.ts` stores only the file list and URLs in `zone_maps`. The app downloads each image to `%APPDATA%\com.ffxi.catseyecompanion\maps` on first view (`src/maps.ts`, using the fs plugin scoped to that folder plus the asset protocol).

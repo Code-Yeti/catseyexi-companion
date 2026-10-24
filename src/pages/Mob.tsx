@@ -4,6 +4,7 @@ import { searchMobs, type CxMob } from "../catseye";
 import { q } from "../db";
 import { DROP_TYPE, pretty, wikiUrl } from "../ffxi";
 import ZoneMap, { type Pt } from "../components/ZoneMap";
+import ItemIcon from "../components/ItemIcon";
 
 type Spawn = { zoneid: number; zone: string; x: number; z: number; minLevel: number; maxLevel: number; dropid: number; skill_list_id: number; respawntime: number };
 
@@ -80,7 +81,7 @@ export default function Mob({ name }: { name: string }) {
         <tbody>
           {drops.map((d, i) => (
             <tr key={i} className="click" onClick={() => go({ name: "item", id: d.itemId })}>
-              <td>{pretty(d.name)}</td><td className="muted">{DROP_TYPE[d.dropType] ?? d.dropType}</td>
+              <td><ItemIcon id={d.itemId} />{pretty(d.name)}</td><td className="muted">{DROP_TYPE[d.dropType] ?? d.dropType}</td>
               <td className="muted">{d.itemRate ? `${d.itemRate / 10}%` : ""}</td>
             </tr>
           ))}
