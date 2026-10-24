@@ -152,9 +152,9 @@ async function main() {
   const insPage = db.prepare("INSERT OR REPLACE INTO cx_pages VALUES (?,?)");
   for (const m of cat.query.categorymembers) insPage.run(m.title.replace(/ /g, "_"), m.title);
 
+  seedQuestNames(db); // before seedChecklists, which builds the mission lists from mission_names
   await seedChecklists(db);
   await seedMaps(db);
-  seedQuestNames(db);
   db.exec(VIEWS);
 
   const overrides = join(root, "data", "overrides.sql");
@@ -184,11 +184,15 @@ async function main() {
   console.log("wrote", OUT);
 }
 
-// Progress checklists: CatsEyeXI custom quests + retail mission lists for the expansions CatseyeXI runs.
-const MISSION_CATS: [string, string][] = [
-  ["San d'Oria Missions", "San_d'Oria_Missions"], ["Bastok Missions", "Bastok_Missions"], ["Windurst Missions", "Windurst_Missions"],
-  ["Zilart Missions", "Zilart_Missions"], ["Promathia Missions", "Promathia_Missions"], ["Aht Urhgan Missions", "Aht_Urhgan_Missions"],
+// Progress checklists: CatsEyeXI custom quests + mission lists built from LSB's mission ids (mission_names), so the
+// app can tick them from the game's mission log. [list, LSB log id]
+const MISSION_LISTS: [string, number][] = [
+  ["San d'Oria Missions", 0], ["Bastok Missions", 1], ["Windurst Missions", 2], ["Zilart Missions", 3],
+  ["Promathia Missions", 6], ["Aht Urhgan Missions", 4], ["Wings of the Goddess Missions", 5],
 ];
+// Nation missions: the 20 numbered missions, once the rank-2 travel legs to the other nations are left out.
+const NATION_LEG = /^(Journey To |The Emissary |The Three Kingdoms )/;
+const NATION_NUMBERS = ["1-1", "1-2", "1-3", "2-1", "2-2", "2-3", "3-1", "3-2", "3-3", "4-1", "5-1", "5-2", "6-1", "6-2", "7-1", "7-2", "8-1", "8-2", "9-1", "9-2"];
 
 // ---------- zone maps (bg-wiki) + auto-calibration ----------
 // bg-wiki zone pages carry "Zone Geography" rows: for each connection, the map file + grid square (e.g. G-7) of the
@@ -413,8 +417,9 @@ function seedQuestNames(db: DatabaseSync) {
 }
 
 async function seedChecklists(db: DatabaseSync) {
-  db.exec("CREATE TABLE checklist_seed (list TEXT, item TEXT, note TEXT, url TEXT, ord INT, PRIMARY KEY (list, item))");
-  const ins = db.prepare("INSERT OR IGNORE INTO checklist_seed VALUES (?,?,?,?,?)");
+  // log/mid: the LSB mission this row is (null for custom quests), used to tick it from the game's mission log.
+  db.exec("CREATE TABLE checklist_seed (list TEXT, item TEXT, note TEXT, url TEXT, ord INT, log INT, mid INT, PRIMARY KEY (list, item))");
+  const ins = db.prepare("INSERT OR IGNORE INTO checklist_seed VALUES (?,?,?,?,?,?,?)");
   const wiki = (t: string) => `https://www.bg-wiki.com/ffxi/${encodeURIComponent(t.replace(/ /g, "_"))}`;
 
   const quests = await wikiText("CatsEyeXI_Systems/Quests");
@@ -425,15 +430,15 @@ async function seedChecklists(db: DatabaseSync) {
     if (!name) continue;
     const modes = ["ACE", "CW", "WEW"].filter((m) => /^y/i.test(f(m))).join("/");
     const note = [plain(f("Zone")), f("Level Requirement") && `Lv${plain(f("Level Requirement"))}`, f("Job") && plain(f("Job")), modes].filter(Boolean).join(" · ");
-    ins.run("CatsEyeXI Quests", name, note, wiki("CatsEyeXI_Systems/Quests"), ord++);
+    ins.run("CatsEyeXI Quests", name, note, wiki("CatsEyeXI_Systems/Quests"), ord++, null, null);
   }
 
-  for (const [list, cat] of MISSION_CATS) {
-    const j: any = await (await fetch(`${WIKI_API}?action=query&list=categorymembers&cmtitle=Category:${encodeURIComponent(cat)}&cmlimit=500&cmtype=page&format=json`, { headers: UA })).json();
-    const prefix = list.replace(/s$/, ""); // "Bastok Mission"
-    const titles = j.query.categorymembers.map((m: any) => m.title as string).filter((t: string) => t.startsWith(prefix))
-      .sort((a: string, b: string) => a.localeCompare(b, "en", { numeric: true }));
-    titles.forEach((t: string, i: number) => ins.run(list, t.slice(prefix.length).trim() || t, null, wiki(t), i));
+  const search = (t: string) => `https://www.bg-wiki.com/index.php?search=${encodeURIComponent(t)}`;
+  for (const [list, log] of MISSION_LISTS) {
+    let ms = db.prepare("SELECT id, name FROM mission_names WHERE log=? AND id<>65535 ORDER BY id").all(log) as { id: number; name: string }[];
+    if (log <= 2) ms = ms.filter((m) => !NATION_LEG.test(m.name));
+    if (log <= 2) assert.equal(ms.length, NATION_NUMBERS.length, `${list}: expected 20 numbered missions`);
+    ms.forEach((m, i) => ins.run(list, `${log <= 2 ? NATION_NUMBERS[i] : `${i + 1}.`} ${m.name}`, null, search(m.name), i, log, m.id));
   }
 }
 
