@@ -12,7 +12,7 @@ A Tauri v2 + React + TypeScript desktop companion for the CatseyeXI FFXI private
 - `npm run tauri dev`: run the app. Rust lives in `~/.cargo/bin`; add it to PATH if the shell doesn't have it.
 - `npm run tauri build`: build the MSI under `src-tauri/target/release/bundle/msi/`.
 - `npx tsc --noEmit`: typecheck the frontend.
-- `node scripts/test-traits.ts`: assert checks for the pure logic in `src/ffxi.ts`: the trait solver, `fitMap`, `activeTraits`, and the quest-log decoder `decodeLogs`.
+- `node scripts/test-traits.ts`: assert checks for the pure logic in `src/ffxi.ts`: the trait solver, `fitMap`, `activeTraits`, the quest-log decoder `decodeLogs`, and `expGain` (EXP/merit rate tracking).
 - Repos: this whole project is **private** at `Code-Yeti/catseyexi-companion` (remote `origin`). The addon alone is **public** at `Code-Yeti/catseyecompanion`, for CatseyeXI staff review. Publish addon changes with `git subtree push --prefix=addon/catseyecompanion https://github.com/Code-Yeti/catseyecompanion.git main`. Never push anything else there. Commits use the noreply email set in this repo's git config.
 - `npm run install-addon`: copy `addon/catseyecompanion` into `D:/catseyexi/catseyexi-client/Vanacore/addons/ashita` (override with `VANACORE_DIR`). In game, load it with `/addon load catseyecompanion ashita`. Keep pure logic that needs tests in `ffxi.ts`, which has no imports, so Node can run it without a bundler.
 - UI automation: launch with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, then drive the webview over CDP at `http://127.0.0.1:9222/json`.
