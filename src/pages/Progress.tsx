@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { useApp } from "../ctx";
-import { q, uq, uexec } from "../db";
+import { q, uq, uexec, getKv } from "../db";
 import { JOBS, LEVEL_CAP, QUEST_AREAS, decodeLogs } from "../ffxi";
 
 type Row = { item: string; note?: string; url?: string; done: boolean };
@@ -82,22 +82,26 @@ export default function Progress() {
 // CatseyeXI's custom quests show by number only).
 const MISSION_LOG_NAMES = ["San d'Oria", "Bastok", "Windurst", "Zilart"];
 function GameLog() {
-  const { live } = useApp();
+  const { live, char } = useApp();
+  const [saved, setSaved] = useState<{ char: string; ts: number; logs: Record<string, string> }>();
   const [qn, setQn] = useState<Map<string, string>>(new Map());
   const [mn, setMn] = useState<Map<string, string>>(new Map());
   const [open, setOpen] = useState<number>();
   useEffect(() => {
     q<{ log: number; id: number; name: string }>("SELECT * FROM quest_names").then((r) => setQn(new Map(r.map((x) => [x.log + ":" + x.id, x.name]))));
     q<{ log: number; id: number; name: string }>("SELECT * FROM mission_names").then((r) => setMn(new Map(r.map((x) => [x.log + ":" + x.id, x.name]))));
+    getKv("gameLogs").then((v) => v && setSaved(JSON.parse(v))); // last log App saved, for when the game is closed
   }, []);
-  if (!live?.logs) return null;
-  const d = decodeLogs(live.logs);
-  if (!d.have) return <div className="card muted">The game addon is connected. Your quest log appears after the next zone change.</div>;
+  const logs = live?.logs ?? (saved && (!char || saved.char === char.charname) ? saved.logs : undefined);
+  if (!logs) return null;
+  const d = decodeLogs(logs);
+  if (!d.have && live) return <div className="card muted">The game addon is connected. Your quest log appears after the next zone change.</div>;
   const name = (log: number, id: number) => qn.get(log + ":" + id) ?? `Quest #${id}`;
   const mission = (log: number, id?: number) => (id === undefined ? "?" : mn.get(log + ":" + id) ?? (id === 0 ? "not started" : `#${id}`));
   return (
     <div className="card">
-      <b>From the game</b> <span className="tag own">live</span>
+      <b>From the game</b> {live?.logs ? <span className="tag own">live</span>
+        : <span className="tag">last read {new Date(saved!.ts * 1000).toLocaleString()}</span>}
       {d.current && (
         <div className="muted" style={{ marginTop: 4 }}>
           Current: {MISSION_LOG_NAMES[d.current.nation]} <b>{mission(d.current.nation, d.current.nationMission)}</b> ·

@@ -190,6 +190,15 @@ export default function App() {
       await setKv("lastLearnEvent", String(Math.max(...fresh.map((e) => e.time))));
     })();
   }, [live?.events?.length]);
+  // Keep the last quest/mission log so Progress can show it with the game closed.
+  const logsKey = useRef("");
+  useEffect(() => {
+    if (!live?.logs) return;
+    const k = JSON.stringify(live.logs);
+    if (k === logsKey.current) return;
+    logsKey.current = k;
+    setKv("gameLogs", JSON.stringify({ char: live.char, ts: live.ts, logs: live.logs }));
+  }, [live?.logs]);
   const where = storageIndex(live);
   const ownedAll = live?.storage ? new Set([...owned, ...where.keys()]) : owned;
 
