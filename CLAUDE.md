@@ -27,7 +27,7 @@ A Tauri v2 + React + TypeScript desktop companion for the CatseyeXI FFXI private
    - The importer in `build-db.ts` generically parses MySQL dumps: `SET @VAR` (case-insensitive), `0x` hex, and `|` flag expressions.
 3. **bg-wiki `Category:CatsEyeXI`** via the MediaWiki API, used for:
    - `cx_blu_spells`, from the Blue Mage table on `CatsEyeXI_Systems/Jobs`
-   - `checklist_seed`, from custom quests on `CatsEyeXI_Systems/Quests` plus the mission categories
+   - `checklist_seed` custom quests, from `CatsEyeXI_Systems/Quests` (they have no LSB quest ids, so no auto-tick). Mission lists are built from LSB `mission_names` instead, with `log`/`mid` so Progress ticks them from the game log: completed bits for nation and Zilart, ids before the current mission for CoP/ToAU/WotG.
    - `cx_pages`
 4. `data/overrides.sql`: hand fixes, applied after imports but before `blu_spells` is derived.
 
