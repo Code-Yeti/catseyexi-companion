@@ -4,6 +4,7 @@ import { q, uq, uexec } from "../db";
 import { pretty, wikiUrl } from "../ffxi";
 import ZoneMap from "../components/ZoneMap";
 import BluTraits from "./BluTraits";
+import BluSet from "./BluSet";
 
 type Spell = { spellid: number; name: string; level: number; lsb_level: number | null; set_points: number | null; cx_notes: string | null; content_tag: string };
 type Source = { mobname: string; zoneid: number; zone: string; n: number; lo: number; hi: number; cx?: boolean; era?: number };
@@ -18,7 +19,7 @@ export default function BlueMage() {
   const [filter, setFilter] = useState({ text: "", hideLearned: true, onlyLearnable: false });
   const [open, setOpen] = useState<string>();
   const [adjust, setAdjust] = useState<string>();
-  const [tab, setTab] = useState<"spells" | "traits">("spells");
+  const [tab, setTab] = useState<"spells" | "set" | "traits">("spells");
   const showSpell = (name: string) => { setTab("spells"); setFilter({ text: name, hideLearned: false, onlyLearnable: false }); setOpen(name); };
 
   useEffect(() => {
@@ -59,9 +60,10 @@ export default function BlueMage() {
       </details>
       <div className="row">
         <button className={tab === "spells" ? "active-tab" : ""} onClick={() => setTab("spells")}>Spells</button>
+        <button className={tab === "set" ? "active-tab" : ""} onClick={() => setTab("set")}>Current set</button>
         <button className={tab === "traits" ? "active-tab" : ""} onClick={() => setTab("traits")}>Trait planner</button>
       </div>
-      {tab === "traits" ? <BluTraits blu={blu} learned={learned} onSpell={showSpell} /> : <>
+      {tab === "set" ? <BluSet blu={blu} learned={learned} onSpell={showSpell} /> : tab === "traits" ? <BluTraits blu={blu} learned={learned} onSpell={showSpell} /> : <>
       <div className="row">
         <input placeholder="Filter spells" value={filter.text} onChange={(e) => setFilter({ ...filter, text: e.target.value })} />
         <label><input type="checkbox" checked={filter.hideLearned} onChange={(e) => setFilter({ ...filter, hideLearned: e.target.checked })} /> Hide learned</label>

@@ -85,3 +85,14 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .map-content { position: relative; transform-origin: 0 0; }
 .map-zoom { position: absolute; top: 6px; right: 6px; z-index: 3; display: flex; flex-direction: column; gap: 4px; }
 .map-zoom button { width: 30px; height: 30px; padding: 0; font-size: 16px; background: #1b1e27dd; }
+.set-graph { position: relative; display: grid; grid-template-columns: minmax(220px, 300px) minmax(80px, 1fr) minmax(260px, 340px); margin: 10px 0 18px; }
+.set-col { position: relative; }
+.set-row { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; transition: top .45s ease-in-out, opacity .2s; }
+.set-row.trait { display: block; padding: 5px 10px; border-left-width: 3px; }
+.set-row .contrib { margin-left: auto; padding: 1px 7px; border-radius: 10px; color: #12141a; font-weight: 700; font-size: 12px; }
+.set-row .contrib.none { background: var(--line); color: var(--muted); font-weight: 400; }
+.set-lines { width: 100%; overflow: visible; }
+.set-lines path { fill: none; vector-effect: non-scaling-stroke; transition: d .45s ease-in-out, opacity .2s; }
+.trait-bar { height: 5px; margin: 4px 0 2px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.trait-bar div { height: 100%; transition: width .4s; }

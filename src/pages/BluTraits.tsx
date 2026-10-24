@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { q, getKv, setKv } from "../db";
 import { activeTraits, pretty, solveTrait } from "../ffxi";
 import { useApp } from "../ctx";
+import { resolveSet, type SetSpell } from "./BluSet";
 
 type Tier = { category: number; name: string; tier: number; points: number; effect: string };
 type Sp = { name: string; level: number; set_points: number; trait_weight: number; trait_category: number; cx_notes: string | null };
@@ -15,12 +16,12 @@ export default function BluTraits({ blu, learned, onSpell }: { blu: number; lear
   const [picks, setPicks] = useState<Record<number, number>>({}); // category -> tier
   const [budget, setBudget] = useState(55);
   const { live } = useApp();
-  const [allSpells, setAllSpells] = useState<{ spellid: number; name: string; set_points: number | null; trait_category: number | null; trait_weight: number | null }[]>([]);
+  const [allSpells, setAllSpells] = useState<SetSpell[]>([]);
 
   useEffect(() => {
     q<Tier>("SELECT category, name, tier, points, effect FROM blu_trait_tiers WHERE jp_only=0 ORDER BY name, tier").then(setTiers);
     q<Sp>("SELECT name, level, set_points, trait_weight, trait_category, cx_notes FROM blu_spells WHERE available=1 AND trait_category IS NOT NULL").then(setSpells);
-    q("SELECT spellid, name, set_points, trait_category, trait_weight FROM blu_spells").then(setAllSpells);
+    q<SetSpell>("SELECT spellid, name, level, set_points, trait_category, trait_weight FROM blu_spells").then(setAllSpells);
     getKv("bluTraitPicks").then((v) => v && setPicks(JSON.parse(v)));
     getKv("bluBudget").then((v) => v && setBudget(Number(v)));
   }, []);
@@ -45,12 +46,7 @@ export default function BluTraits({ blu, learned, onSpell }: { blu: number; lear
   const totalPts = all.reduce((a, s) => a + s.set_points, 0);
   const toLearn = all.filter((s) => status(s) !== "learned");
 
-  // Current in-game set (addon): client ids -> names (via the learned list, which carries names) -> our spell rows.
-  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const names = new Map((live?.bluKnown ?? []).map(([id, n]) => [id, n]));
-  const byNorm = new Map(allSpells.map((sp) => [norm(sp.name), sp]));
-  const byId = new Map(allSpells.filter((sp) => sp.spellid > 0).map((sp) => [sp.spellid, sp])); // LSB ids = client ids
-  const current = live?.bluSet ? live.bluSet.map((id) => byId.get(id) ?? byNorm.get(norm(names.get(id) ?? "")) ?? { name: names.get(id) ?? `#${id}`, set_points: null, trait_category: null, trait_weight: null }) : null;
+  const current = resolveSet(live, allSpells); // current in-game set (addon)
   const currentTraits = current ? activeTraits(current, tiers) : [];
   const planned = new Set(plans.flatMap((p) => (p.chosen ?? []).map((c) => c.name)));
   const toAdd = current ? [...planned].filter((n) => !current.some((c) => c.name === n)) : [];
