@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useApp } from "../ctx";
 import { q, uq, uexec, getKv } from "../db";
-import { JOBS, LEVEL_CAP, QUEST_AREAS, decodeLogs, pretty } from "../ffxi";
+import { JOBS, LEVEL_CAP, QUEST_AREAS, decodeLogs, pretty, parseVentures } from "../ffxi";
 import type { Trial } from "../live";
 import ItemIcon from "../components/ItemIcon";
 
@@ -195,22 +195,45 @@ function WsTrials() {
   );
 }
 
-// Ventures (CatseyeXI): chat lines about them, captured by the addon. First step: show them as they come, to learn the
-// server's message format before parsing objectives and progress out of them.
+// Ventures (CatseyeXI): today's objectives, parsed from the last "!ventures" reply the addon captured.
 function Ventures() {
   const { live } = useApp();
   const [lines, setLines] = useState<{ text: string; time: number }[]>([]);
   useEffect(() => { getKv("ventureLog").then((v) => v && setLines(JSON.parse(v))); }, [live?.ventureLog?.length, live?.ts]);
+  const v = parseVentures(lines);
+  const lvl = live?.mainLevel ?? 0;
+  const tiers = [...new Set(v?.tiers.map((t) => t.lo))];
+  const cell = (pool: "A" | "B", lo: number) => {
+    const t = v!.tiers.find((x) => x.pool === pool && x.lo === lo);
+    return t ? <td>{t.zone}{t.pct != null && <span className="muted"> · boss {t.pct}%</span>}</td> : <td />;
+  };
   return (
     <div className="card">
-      <b>Ventures</b> <span className="muted">· from your chat log (needs the game addon). Type <code>!ventures</code> in game to list today's objectives.</span>
-      {lines.length ? (
-        <div className="venture-log">
-          {lines.slice(-25).reverse().map((l, i) => (
-            <div key={i}><span className="muted">{new Date(l.time * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span> {l.text}</div>
-          ))}
-        </div>
+      <b>Ventures</b> <span className="muted">· type <code>!ventures</code> in game (with the addon running) to refresh. Boss % is the zone's shared progress to its venture boss.</span>
+      {v ? (
+        <>
+          <div className="muted" style={{ marginTop: 4 }}>As of {new Date(v.time * 1000).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}</div>
+          <table style={{ marginTop: 6 }}>
+            <thead><tr><th>Level</th><th>Pool A</th><th>Pool B</th></tr></thead>
+            <tbody>
+              {tiers.map((lo) => {
+                const hi = v.tiers.find((t) => t.lo === lo)!.hi;
+                return <tr key={lo} className={lvl >= lo && lvl <= hi ? "current" : undefined}><td>{lo}-{hi}</td>{cell("A", lo)}{cell("B", lo)}</tr>;
+              })}
+            </tbody>
+          </table>
+          {v.hvnm && <div style={{ marginTop: 6 }}><b>HVNM:</b> {v.hvnm.nm} in {v.hvnm.zone}{v.hvnm.pct != null && <span className="muted"> · {v.hvnm.pct}%</span>}</div>}
+        </>
       ) : <div className="muted" style={{ marginTop: 4 }}>Nothing yet.</div>}
+      {lines.length > 0 && (
+        <details style={{ marginTop: 6 }}><summary className="muted">Venture chat</summary>
+          <div className="venture-log">
+            {lines.slice(-25).reverse().map((l, i) => (
+              <div key={i}><span className="muted">{new Date(l.time * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span> {l.text}</div>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

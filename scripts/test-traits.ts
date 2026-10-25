@@ -74,3 +74,19 @@ assert.equal(new Date(nextTally(at("2026-10-25T15:00:00Z"))).toISOString(), "202
 assert.equal(new Date(nextTally(at("2026-10-28T09:30:00Z"))).toISOString(), "2026-11-01T15:00:00.000Z"); // Wednesday
 assert.equal(dhm(((2 * 24 + 4) * 60 + 13) * 60000 + 59000), "2d 4h 13m");
 console.log("tally ok");
+
+import { parseVentures, parseWsPoints } from "../src/ffxi.ts";
+const vl = ["Arcadea : !ventures", "=== Today's Goblin Ventures ===",
+  "Pool A: (10-19) Buburimu Peninsula @28%, (20-29) Korroloka Tunnel @87%, (30-39) Yhoator Jungle @25%",
+  "(40-49) Toraimarai Canal @23%, (50-59) Kuftal Tunnel @19%, (60-69) The Boyahda Tree @37%",
+  "Pool B: (10-19) East Ronfaure [S] @72%, (20-29) Bhaflau Thickets @23%, (30-39) Vunkerl Inlet [S] @68%",
+  "(40-49) East Ronfaure [S] @9%, (50-59) Aydeewa Subterrane, (60-69) Alzadaal Undersea Ruins @6%",
+  "HVNM: Sauromugue Champaign (Swiftsting) @65.0%", "Kupipi misses the Steelshell."].map((text) => ({ text, time: 1 }));
+const v = parseVentures(vl)!;
+assert.equal(v.tiers.length, 12);
+assert.deepEqual(v.tiers[5], { pool: "A", lo: 60, hi: 69, zone: "The Boyahda Tree", pct: 37 });
+assert.deepEqual(v.tiers[10], { pool: "B", lo: 50, hi: 59, zone: "Aydeewa Subterrane", pct: null });
+assert.deepEqual(v.tiers[6], { pool: "B", lo: 10, hi: 19, zone: "East Ronfaure [S]", pct: 72 });
+assert.deepEqual(v.hvnm, { zone: "Sauromugue Champaign", nm: "Swiftsting", pct: 65 });
+assert.deepEqual(parseWsPoints("----== SystemMessage ==----The weapon in Arcadea's main slot has 120 WS points."), { slot: 0, points: 120 });
+console.log("chat parsers ok");

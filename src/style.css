@@ -115,3 +115,4 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .tally + .exp-bar { margin-top: 0; }
 .tally + .who { margin-top: 0; }
 .venture-log { margin-top: 6px; max-height: 260px; overflow-y: auto; font-family: Consolas, monospace; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+tr.current td { background: color-mix(in srgb, var(--accent) 18%, transparent); }

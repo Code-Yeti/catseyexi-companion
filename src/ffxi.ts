@@ -167,3 +167,30 @@ export const dhm = (ms: number) => {
   const m = Math.max(0, Math.floor(ms / 60000));
   return `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h ${m % 60}m`;
 };
+
+// CatseyeXI chat replies (captured by the addon). "!ventures" prints a header then lines like
+// "Pool A: (10-19) Buburimu Peninsula @28%, (20-29) ..." (a zone without "@n%" has no boss progress yet), and
+// "HVNM: Sauromugue Champaign (Swiftsting) @65.0%". The percentage is the zone's shared progress to its venture boss.
+export type VentureTier = { pool: "A" | "B"; lo: number; hi: number; zone: string; pct: number | null };
+export type Ventures = { time: number; tiers: VentureTier[]; hvnm?: { zone: string; nm: string; pct: number | null } };
+export function parseVentures(lines: { text: string; time: number }[]): Ventures | null {
+  const start = lines.map((l) => l.text).lastIndexOf("=== Today's Goblin Ventures ===");
+  if (start < 0) return null;
+  const out: Ventures = { time: lines[start].time, tiers: [] };
+  let pool: "A" | "B" = "A";
+  for (const { text } of lines.slice(start + 1)) {
+    const hv = text.match(/^HVNM:\s*(.+?)\s*\(([^)]+)\)\s*(?:@([\d.]+)%)?/);
+    if (hv) { out.hvnm = { zone: hv[1], nm: hv[2], pct: hv[3] ? +hv[3] : null }; break; }
+    const p = text.match(/^Pool ([AB]):/);
+    if (p) pool = p[1] as "A" | "B";
+    const tiers = [...text.matchAll(/\((\d+)-(\d+)\)\s*([^,@]+?)\s*(?:@([\d.]+)%)?\s*(?:,|$)/g)];
+    if (!p && !tiers.length) break; // end of the list
+    for (const m of tiers) out.tiers.push({ pool, lo: +m[1], hi: +m[2], zone: m[3].trim(), pct: m[4] ? +m[4] : null });
+  }
+  return out;
+}
+// "!wspoints main" -> "...The weapon in Arcadea's main slot has 120 WS points."
+export function parseWsPoints(text: string): { slot: number; points: number } | null {
+  const m = text.match(/weapon in .+?'s (main|sub|ranged) slot has (\d+) WS points/i);
+  return m ? { slot: ["main", "sub", "ranged"].indexOf(m[1].toLowerCase()), points: +m[2] } : null;
+}

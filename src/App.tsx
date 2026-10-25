@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { pretty, expGain, wsPoints, type ExpSnap } from "./ffxi";
+import { pretty, expGain, wsPoints, parseWsPoints, type ExpSnap } from "./ffxi";
 import "./style.css";
 import { Ctx, type Friend, type Page } from "./ctx";
 import { getChar, getOwned, type Character } from "./catseye";
@@ -226,11 +226,19 @@ export default function App() {
       // 1. The weapon's own (exact) count, whenever the client has a new one: replaces the estimate.
       for (const w of live.weapons ?? []) {
         const { need, name } = await info(w.id);
-        if (!need || t[w.id]?.points === w.wsPoints) continue;
+        if (!need || (t[w.id] && w.wsPoints <= t[w.id].points)) continue; // the count only grows; CatseyeXI often reports 0
         const old = t[w.id];
         t[w.id] = { points: w.wsPoints, need, ts: Math.floor(now), extra: 0 };
         dirty = true;
         if (old && total(old) < need && w.wsPoints >= need) done(name, false);
+      }
+      // 1b. "!wspoints main|sub|ranged" replies: the server's own count. Only trusted when non-zero, since CatseyeXI
+      // reported 0 for a trial weapon that was mid-progress.
+      for (const l of live.ventureLog ?? []) {
+        const r = parseWsPoints(l.text), w = r && live.weapons?.find((x) => x.slot === r.slot);
+        if (!r || !w || !r.points || l.time <= (t[w.id]?.ts ?? 0)) continue;
+        const { need } = await info(w.id);
+        if (need) { t[w.id] = { points: r.points, need, ts: l.time, extra: 0 }; dirty = true; }
       }
       // 2. New weapon skills on mobs (server ids from 0x01000000) wait for EXP, for the weapon in that hand.
       const used = live.wsUsed ?? [];
