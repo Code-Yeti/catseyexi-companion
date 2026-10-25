@@ -159,13 +159,14 @@ function GameLog({ logs, saved }: { logs: Record<string, string>; saved?: Saved 
   );
 }
 
-// Weapon skill trials: points on each trial weapon you've equipped (live while equipped, else last seen).
+// Weapon skill trials: progress of the trial weapon(s) you have equipped right now; hidden otherwise.
 function WsTrials() {
   const { live } = useApp();
   const [saved, setSaved] = useState<Record<string, Trial>>({});
   const [names, setNames] = useState<Map<number, string>>(new Map());
   useEffect(() => { getKv("wsTrials").then((v) => v && setSaved(JSON.parse(v))); }, [live?.ts]); // App updates it as you fight
-  const ids = Object.keys(saved).map(Number);
+  // Only trial weapons you have equipped right now (the addon reports main, sub and ranged).
+  const ids = Object.keys(saved).map(Number).filter((id) => live?.weapons?.some((w) => w.id === id));
   useEffect(() => {
     if (ids.length) q<{ itemid: number; name: string }>(`SELECT itemid, name FROM item_basic WHERE itemid IN (${ids.join(",")})`)
       .then((r) => setNames(new Map(r.map((x) => [x.itemid, pretty(x.name)]))));
@@ -177,15 +178,14 @@ function WsTrials() {
         The weapon's own count only updates when you zone; "~" is the app's count since then.</span>
       <table style={{ marginTop: 6 }}><tbody>
         {ids.map((id) => {
-          const equipped = live?.weapons?.find((w) => w.id === id);
           const t = saved[id], extra = t.extra ?? 0, pts = t.points + extra, done = pts >= t.need;
           return (
             <tr key={id}>
-              <td style={{ width: 220 }}><ItemIcon id={id} />{names.get(id) ?? `#${id}`}{equipped && <span className="tag own">equipped</span>}</td>
+              <td style={{ width: 220 }}><ItemIcon id={id} />{names.get(id) ?? `#${id}`}</td>
               <td><div className="trait-bar" style={{ width: 220 }}><div style={{ width: `${Math.min(100, (pts / t.need) * 100)}%`, background: done ? "var(--good)" : "var(--accent)" }} /></div></td>
               <td title={extra ? "The weapon's own count updates when you zone; the rest is the app's count of your weapon skills since" : undefined}>
                 {extra ? <>{t.points} + ~{extra}</> : pts}/{t.need}</td>
-              <td>{done ? <span className="good">Complete: take it back to the quest NPC</span> : <span className="muted">{t.need - pts} to go{!equipped && ` · last seen ${new Date(t.ts * 1000).toLocaleDateString()}`}</span>}</td>
+              <td>{done ? <span className="good">Complete: take it back to the quest NPC</span> : <span className="muted">{t.need - pts} to go</span>}</td>
             </tr>
           );
         })}
