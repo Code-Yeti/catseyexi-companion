@@ -164,7 +164,7 @@ function WsTrials() {
   const { live } = useApp();
   const [saved, setSaved] = useState<Record<string, Trial>>({});
   const [names, setNames] = useState<Map<number, string>>(new Map());
-  useEffect(() => { getKv("wsTrials").then((v) => v && setSaved(JSON.parse(v))); }, [JSON.stringify(live?.weapons ?? null)]);
+  useEffect(() => { getKv("wsTrials").then((v) => v && setSaved(JSON.parse(v))); }, [live?.ts]); // App updates it as you fight
   const ids = Object.keys(saved).map(Number);
   useEffect(() => {
     if (ids.length) q<{ itemid: number; name: string }>(`SELECT itemid, name FROM item_basic WHERE itemid IN (${ids.join(",")})`)
@@ -173,16 +173,18 @@ function WsTrials() {
   if (!ids.length) return null;
   return (
     <div className="card">
-      <b>Weapon skill trials</b> <span className="muted">· equip a trial weapon and land weapon skills with it (needs the game addon)</span>
+      <b>Weapon skill trials</b> <span className="muted">· weapon skills on mobs that give EXP count (5 points, more if you close a skillchain).
+        The weapon's own count only updates when you zone; "~" is the app's count since then.</span>
       <table style={{ marginTop: 6 }}><tbody>
         {ids.map((id) => {
           const equipped = live?.weapons?.find((w) => w.id === id);
-          const t = saved[id], pts = equipped?.wsPoints ?? t.points, done = pts >= t.need;
+          const t = saved[id], extra = t.extra ?? 0, pts = t.points + extra, done = pts >= t.need;
           return (
             <tr key={id}>
               <td style={{ width: 220 }}><ItemIcon id={id} />{names.get(id) ?? `#${id}`}{equipped && <span className="tag own">equipped</span>}</td>
               <td><div className="trait-bar" style={{ width: 220 }}><div style={{ width: `${Math.min(100, (pts / t.need) * 100)}%`, background: done ? "var(--good)" : "var(--accent)" }} /></div></td>
-              <td>{pts}/{t.need}</td>
+              <td title={extra ? "The weapon's own count updates when you zone; the rest is the app's count of your weapon skills since" : undefined}>
+                {extra ? <>{t.points} + ~{extra}</> : pts}/{t.need}</td>
               <td>{done ? <span className="good">Complete: take it back to the quest NPC</span> : <span className="muted">{t.need - pts} to go{!equipped && ` · last seen ${new Date(t.ts * 1000).toLocaleDateString()}`}</span>}</td>
             </tr>
           );

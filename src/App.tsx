@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { pretty } from "./ffxi";
+import { pretty, expGain, wsPoints, type ExpSnap } from "./ffxi";
 import "./style.css";
 import { Ctx, type Friend, type Page } from "./ctx";
 import { getChar, getOwned, type Character } from "./catseye";
@@ -192,35 +192,75 @@ export default function App() {
       await setKv("lastLearnEvent", String(Math.max(...fresh.map((e) => e.time))));
     })();
   }, [live?.events?.length]);
-  // Weapon skill trials: remember each trial weapon's points (user.db kv "wsTrials") and pop up when one completes.
+  // Weapon skill trials (user.db kv "wsTrials", by item id). The weapon's own count only reaches the client when the
+  // item is resent (zoning), so in between we estimate: each of your weapon skills on a mob waits until you gain EXP or
+  // limit points (the server only awards points against mobs that give EXP), then its points go to that hand's weapon.
   const trialsRef = useRef<Record<string, Trial> | null>(null);
-  const trialNeed = useRef(new Map<number, { need: number; name: string }>());
-  const weaponsKey = JSON.stringify(live?.weapons ?? null);
+  const trialInfo = useRef(new Map<number, { need: number; name: string }>());
+  const rangedWs = useRef<Set<number> | null>(null);
+  const wsSeen = useRef(0);
+  const pendingWs = useRef<{ weapon: number; pts: number; time: number }[]>([]);
+  const prevExp = useRef<ExpSnap | undefined>(undefined);
+  const trialBusy = useRef(false);
   useEffect(() => {
-    const ws = live?.weapons;
-    if (!ws?.length) return;
+    if (!live || trialBusy.current) return; // a skipped tick is caught up on the next one
+    trialBusy.current = true;
     (async () => {
       trialsRef.current ??= JSON.parse((await getKv("wsTrials")) ?? "{}") as Record<string, Trial>;
-      const t = trialsRef.current;
-      let dirty = false;
-      for (const w of ws) {
-        if (!trialNeed.current.has(w.id)) {
-          const r = await q<{ need: number; name: string }>("SELECT coalesce(w.unlock_points, 0) need, b.name FROM item_basic b LEFT JOIN item_weapon w ON w.itemId = b.itemid WHERE b.itemid = $1", w.id);
-          trialNeed.current.set(w.id, r[0] ?? { need: 0, name: `#${w.id}` });
+      rangedWs.current ??= new Set((await q<{ id: number }>("SELECT id FROM sc_skills WHERE kind='ws' AND weapon IN ('Archery','Marksmanship')")).map((r) => r.id));
+      const t = trialsRef.current, now = Date.now() / 1000;
+      const info = async (id: number) => {
+        if (!trialInfo.current.has(id)) {
+          const r = await q<{ need: number; name: string }>("SELECT coalesce(w.unlock_points, 0) need, b.name FROM item_basic b LEFT JOIN item_weapon w ON w.itemId = b.itemid WHERE b.itemid = $1", id);
+          trialInfo.current.set(id, r[0] ?? { need: 0, name: `#${id}` });
         }
-        const { need, name } = trialNeed.current.get(w.id)!;
+        return trialInfo.current.get(id)!;
+      };
+      const total = (x?: Trial) => (x ? x.points + (x.extra ?? 0) : 0);
+      const done = (name: string, estimate: boolean) => {
+        toast(`${pretty(name)} trial complete!`, estimate ? "By the app's count: zone to confirm, then take it back to the quest NPC." : "Take it back to the quest NPC to learn the weapon skill.", { name: "progress" });
+        if (prefs.soundLearned) chime("learned");
+      };
+      let dirty = false;
+      // 1. The weapon's own (exact) count, whenever the client has a new one: replaces the estimate.
+      for (const w of live.weapons ?? []) {
+        const { need, name } = await info(w.id);
         if (!need || t[w.id]?.points === w.wsPoints) continue;
         const old = t[w.id];
-        t[w.id] = { points: w.wsPoints, need, ts: Math.floor(Date.now() / 1000) };
+        t[w.id] = { points: w.wsPoints, need, ts: Math.floor(now), extra: 0 };
         dirty = true;
-        if (old && old.points < need && w.wsPoints >= need) {
-          toast(`${pretty(name)} trial complete!`, "Take it back to the quest NPC to learn the weapon skill.", { name: "progress" });
-          if (prefs.soundLearned) chime("learned");
+        if (old && total(old) < need && w.wsPoints >= need) done(name, false);
+      }
+      // 2. New weapon skills on mobs (server ids from 0x01000000) wait for EXP, for the weapon in that hand.
+      const used = live.wsUsed ?? [];
+      if (!wsSeen.current) wsSeen.current = Math.max(1, ...used.map((u) => u.time)); // older ones were before this app run
+      for (const u of used) {
+        if (u.time <= wsSeen.current) continue;
+        wsSeen.current = u.time;
+        const weapon = live.weapons?.find((w) => w.slot === (rangedWs.current!.has(u.ws) ? 2 : 0));
+        if (weapon && u.target >= 0x1000000 && (await info(weapon.id)).need) pendingWs.current.push({ weapon: weapon.id, pts: wsPoints(u.sc), time: u.time });
+      }
+      // 3. EXP or limit points gained: the mob counted, so bank what's pending.
+      if (live.exp) {
+        const snap: ExpSnap = { job: live.mainJob, lvl: live.mainLevel, cur: live.exp.cur, need: live.exp.need, limit: live.exp.limit, merits: live.exp.merits };
+        const gained = prevExp.current ? expGain(prevExp.current, snap) : 0;
+        prevExp.current = snap;
+        if (gained) {
+          for (const p of pendingWs.current) {
+            const x = t[p.weapon];
+            if (!x) continue;
+            const before = total(x);
+            x.extra = (x.extra ?? 0) + p.pts;
+            dirty = true;
+            if (before < x.need && total(x) >= x.need) done((await info(p.weapon)).name, true);
+          }
+          pendingWs.current = [];
         }
       }
+      pendingWs.current = pendingWs.current.filter((p) => now - p.time < 300); // no EXP within 5 min: too weak, or you died
       if (dirty) setKv("wsTrials", JSON.stringify(t));
-    })();
-  }, [weaponsKey]);
+    })().finally(() => { trialBusy.current = false; });
+  }, [live?.ts]);
   // Keep the last quest/mission log so Progress can show it with the game closed.
   const logsKey = useRef("");
   useEffect(() => {

@@ -16,6 +16,7 @@ export type Live = {
   events?: { spell: number; zone: number; mob: string | null; time: number }[];
   exp?: { cur: number; need: number; limit: number; merits: number; meritsMax: number; limitMode: boolean };
   weapons?: { slot: number; id: number; wsPoints: number }[]; // equipped main(0)/sub(1)/ranged(2)
+  wsUsed?: { ws: number; target: number; sc: number; time: number }[]; // your weapon skills (sc = skillchain message)
   engaged?: boolean;                      // player has weapons drawn
   moves?: { actor: number; skill: number; ready: boolean; time: number }[]; // monster TP moves seen (mob_skill_id)
   logs?: Record<string, string>;            // 0x056 port -> 32 bytes hex
@@ -53,4 +54,6 @@ export function storageIndex(l: Live | null) {
 }
 
 // A trial weapon's weapon skill points, saved by App (user.db kv "wsTrials", by item id) so Progress can show it unequipped.
-export type Trial = { points: number; need: number; ts: number };
+// points = what the weapon itself last reported (the server only resends it when you zone); extra = the app's estimate
+// of what weapon skills earned since (counted once the mob gave EXP).
+export type Trial = { points: number; need: number; ts: number; extra?: number };

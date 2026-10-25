@@ -62,3 +62,7 @@ assert.equal(sc([12], [11]), "Light");
 assert.equal(sc([2], [6]), "Detonation");
 assert.equal(sc([13], [13]), "Light");
 console.log("skillchain ok");
+
+import { wsPoints } from "../src/ffxi.ts";
+assert.deepEqual([wsPoints(0), wsPoints(299), wsPoints(293), wsPoints(288)], [5, 7, 9, 11]); // none, Scission, Fusion, Light
+console.log("ws points ok");

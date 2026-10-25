@@ -146,3 +146,12 @@ export function skillchain(opener: number[], closer: number[]): number | null {
   }
   return best;
 }
+
+// Weapon skill points one weapon skill earns on a trial weapon (LSB defaults: map.WS_POINTS_BASE 5, plus
+// WS_POINTS_SKILLCHAIN 2 per level of the skillchain it closed). scMsg = the action's skillchain message, 0 if none:
+// 288-289 Light/Darkness (level 3), 290-293 level 2, 294-301 level 1, 767-768 Radiance/Umbra (level 3).
+export const WS_POINTS_BASE = 5, WS_POINTS_SKILLCHAIN = 2;
+export function wsPoints(scMsg: number) {
+  const level = scMsg >= 288 && scMsg <= 289 ? 3 : scMsg >= 290 && scMsg <= 293 ? 2 : scMsg >= 294 && scMsg <= 301 ? 1 : scMsg === 767 || scMsg === 768 ? 3 : 0;
+  return WS_POINTS_BASE + level * WS_POINTS_SKILLCHAIN;
+}
