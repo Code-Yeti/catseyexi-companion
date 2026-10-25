@@ -103,3 +103,11 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .exp-bar .bar div { height: 100%; background: var(--accent); transition: width .6s ease-out; }
 .exp-bar .bar.limit div { background: var(--cx); }
 .item-icon { vertical-align: middle; margin-right: 6px; image-rendering: pixelated; }
+.sc-graph { position: relative; display: grid; grid-template-columns: 210px minmax(50px, 1fr) 170px minmax(60px, 1.2fr) 300px; margin: 10px 0 18px; }
+.sc-col { position: relative; }
+.sc-node, .sc-partner { position: absolute; left: 0; right: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; transition: top .35s ease-in-out; }
+.sc-node { padding: 4px 10px; }
+.sc-node .tag { margin: 2px 4px 0 0; }
+.sc-partner { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 0 10px; font-size: 13px; }
+.sc-partner:hover, .sc-node.click:hover { border-color: var(--accent); }
+.sc-result { font-size: 16px; }

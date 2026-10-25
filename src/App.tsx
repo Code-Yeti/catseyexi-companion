@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { pretty } from "./ffxi";
 import "./style.css";
 import { Ctx, type Friend, type Page } from "./ctx";
 import { getChar, getOwned, type Character } from "./catseye";
 import { getKv, setKv, q, uq, uexec } from "./db";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
-import { readLive, isFresh, storageIndex, type Live } from "./live";
+import { readLive, isFresh, storageIndex, type Live, type Trial } from "./live";
 import TargetCard from "./components/TargetCard";
 import ExpBar from "./components/ExpBar";
 import { usePrefs, chime } from "./prefs";
@@ -20,9 +21,10 @@ import Friends from "./pages/Friends";
 import Settings from "./pages/Settings";
 import LiveMap from "./pages/LiveMap";
 import Storage from "./pages/Storage";
+import Skillchains from "./pages/Skillchains";
 
 const NAV: [Page["name"], string][] = [
-  ["character", "Character"], ["map", "Map"], ["search", "Search"], ["mobs", "Mobs"], ["blu", "Blue Magic"],
+  ["character", "Character"], ["map", "Map"], ["search", "Search"], ["mobs", "Mobs"], ["blu", "Blue Magic"], ["skillchains", "Skillchains"],
   ["gear", "Gear"], ["storage", "Storage"], ["progress", "Progress"], ["friends", "Friends"], ["settings", "Settings"],
 ];
 const FRIEND_POLL_MS = 3 * 60_000; // be gentle with catseyexi.com: your character + each friend, once per tick
@@ -190,6 +192,35 @@ export default function App() {
       await setKv("lastLearnEvent", String(Math.max(...fresh.map((e) => e.time))));
     })();
   }, [live?.events?.length]);
+  // Weapon skill trials: remember each trial weapon's points (user.db kv "wsTrials") and pop up when one completes.
+  const trialsRef = useRef<Record<string, Trial> | null>(null);
+  const trialNeed = useRef(new Map<number, { need: number; name: string }>());
+  const weaponsKey = JSON.stringify(live?.weapons ?? null);
+  useEffect(() => {
+    const ws = live?.weapons;
+    if (!ws?.length) return;
+    (async () => {
+      trialsRef.current ??= JSON.parse((await getKv("wsTrials")) ?? "{}") as Record<string, Trial>;
+      const t = trialsRef.current;
+      let dirty = false;
+      for (const w of ws) {
+        if (!trialNeed.current.has(w.id)) {
+          const r = await q<{ need: number; name: string }>("SELECT coalesce(w.unlock_points, 0) need, b.name FROM item_basic b LEFT JOIN item_weapon w ON w.itemId = b.itemid WHERE b.itemid = $1", w.id);
+          trialNeed.current.set(w.id, r[0] ?? { need: 0, name: `#${w.id}` });
+        }
+        const { need, name } = trialNeed.current.get(w.id)!;
+        if (!need || t[w.id]?.points === w.wsPoints) continue;
+        const old = t[w.id];
+        t[w.id] = { points: w.wsPoints, need, ts: Math.floor(Date.now() / 1000) };
+        dirty = true;
+        if (old && old.points < need && w.wsPoints >= need) {
+          toast(`${pretty(name)} trial complete!`, "Take it back to the quest NPC to learn the weapon skill.", { name: "progress" });
+          if (prefs.soundLearned) chime("learned");
+        }
+      }
+      if (dirty) setKv("wsTrials", JSON.stringify(t));
+    })();
+  }, [weaponsKey]);
   // Keep the last quest/mission log so Progress can show it with the game closed.
   const logsKey = useRef("");
   useEffect(() => {
@@ -216,6 +247,7 @@ export default function App() {
       case "settings": return <Settings />;
       case "map": return <LiveMap />;
       case "storage": return <Storage />;
+      case "skillchains": return <Skillchains />;
     }
   })();
 

@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useState } from "react";
 import { useApp } from "../ctx";
 import { q, uq, uexec, getKv } from "../db";
-import { JOBS, LEVEL_CAP, QUEST_AREAS, decodeLogs } from "../ffxi";
+import { JOBS, LEVEL_CAP, QUEST_AREAS, decodeLogs, pretty } from "../ffxi";
+import type { Trial } from "../live";
+import ItemIcon from "../components/ItemIcon";
 
 type Row = { item: string; note?: string; url?: string; done: boolean; log?: number | null; mid?: number | null };
 type Saved = { char: string; ts: number; logs: Record<string, string> };
@@ -63,6 +65,7 @@ export default function Progress() {
     <div>
       <h1>Progress</h1>
       {logs && <GameLog logs={logs} saved={live?.logs ? undefined : saved} />}
+      <WsTrials />
       {char && (
         <div className="row">
           <div className="job">Jobs at {LEVEL_CAP}<b>{capped}/22</b></div>
@@ -152,6 +155,39 @@ function GameLog({ logs, saved }: { logs: Record<string, string>; saved?: Saved 
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// Weapon skill trials: points on each trial weapon you've equipped (live while equipped, else last seen).
+function WsTrials() {
+  const { live } = useApp();
+  const [saved, setSaved] = useState<Record<string, Trial>>({});
+  const [names, setNames] = useState<Map<number, string>>(new Map());
+  useEffect(() => { getKv("wsTrials").then((v) => v && setSaved(JSON.parse(v))); }, [JSON.stringify(live?.weapons ?? null)]);
+  const ids = Object.keys(saved).map(Number);
+  useEffect(() => {
+    if (ids.length) q<{ itemid: number; name: string }>(`SELECT itemid, name FROM item_basic WHERE itemid IN (${ids.join(",")})`)
+      .then((r) => setNames(new Map(r.map((x) => [x.itemid, pretty(x.name)]))));
+  }, [ids.join(",")]);
+  if (!ids.length) return null;
+  return (
+    <div className="card">
+      <b>Weapon skill trials</b> <span className="muted">· equip a trial weapon and land weapon skills with it (needs the game addon)</span>
+      <table style={{ marginTop: 6 }}><tbody>
+        {ids.map((id) => {
+          const equipped = live?.weapons?.find((w) => w.id === id);
+          const t = saved[id], pts = equipped?.wsPoints ?? t.points, done = pts >= t.need;
+          return (
+            <tr key={id}>
+              <td style={{ width: 220 }}><ItemIcon id={id} />{names.get(id) ?? `#${id}`}{equipped && <span className="tag own">equipped</span>}</td>
+              <td><div className="trait-bar" style={{ width: 220 }}><div style={{ width: `${Math.min(100, (pts / t.need) * 100)}%`, background: done ? "var(--good)" : "var(--accent)" }} /></div></td>
+              <td>{pts}/{t.need}</td>
+              <td>{done ? <span className="good">Complete: take it back to the quest NPC</span> : <span className="muted">{t.need - pts} to go{!equipped && ` · last seen ${new Date(t.ts * 1000).toLocaleDateString()}`}</span>}</td>
+            </tr>
+          );
+        })}
+      </tbody></table>
     </div>
   );
 }

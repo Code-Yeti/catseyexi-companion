@@ -15,7 +15,8 @@ export type Live = {
   storage?: Record<string, [number, number][]>; // container -> [itemId, count]
   events?: { spell: number; zone: number; mob: string | null; time: number }[];
   exp?: { cur: number; need: number; limit: number; merits: number; meritsMax: number; limitMode: boolean };
-  engaged?: boolean;                       // player has weapons drawn
+  weapons?: { slot: number; id: number; wsPoints: number }[]; // equipped main(0)/sub(1)/ranged(2)
+  engaged?: boolean;                      // player has weapons drawn
   moves?: { actor: number; skill: number; ready: boolean; time: number }[]; // monster TP moves seen (mob_skill_id)
   logs?: Record<string, string>;            // 0x056 port -> 32 bytes hex
 };
@@ -50,3 +51,6 @@ export function storageIndex(l: Live | null) {
     for (const [id] of items) m.set(id, [...(m.get(id) ?? []), CONTAINERS[c] ?? `Bag ${c}`]);
   return m;
 }
+
+// A trial weapon's weapon skill points, saved by App (user.db kv "wsTrials", by item id) so Progress can show it unequipped.
+export type Trial = { points: number; need: number; ts: number };

@@ -115,3 +115,34 @@ export function expGain(a: ExpSnap, b: ExpSnap): number | null {
   const limit = b.limit - a.limit + (b.merits > a.merits ? (b.merits - a.merits) * 10000 : 0);
   return Math.max(0, exp) + Math.max(0, limit);
 }
+
+// Skillchains. Property ids are LSB's SKILLCHAIN_ELEMENT (as stored in weapon_skills / blue_spell_list *_sc).
+export const SC_NAMES = ["", "Transfixion", "Compression", "Liquefaction", "Scission", "Reverberation", "Detonation", "Induration",
+  "Impaction", "Gravitation", "Distortion", "Fusion", "Fragmentation", "Light", "Darkness"];
+export const SC_LEVEL = (id: number) => (id >= 13 ? 3 : id >= 9 ? 2 : 1);
+// opener property -> closer property -> result (the standard skillchain table).
+const SC_TABLE: Record<number, Record<number, number>> = {
+  1: { 2: 2, 4: 10, 5: 5 },    // Transfixion: +Compression, +Scission = Distortion, +Reverberation
+  2: { 1: 1, 6: 6 },           // Compression: +Transfixion, +Detonation
+  3: { 4: 4, 8: 11 },          // Liquefaction: +Scission, +Impaction = Fusion
+  4: { 3: 3, 5: 5, 6: 6 },     // Scission: +Liquefaction, +Reverberation, +Detonation
+  5: { 7: 7, 8: 8 },           // Reverberation: +Induration, +Impaction
+  6: { 2: 9, 4: 4 },           // Detonation: +Compression = Gravitation, +Scission
+  7: { 2: 2, 5: 12, 8: 8 },    // Induration: +Compression, +Reverberation = Fragmentation, +Impaction
+  8: { 3: 3, 6: 6 },           // Impaction: +Liquefaction, +Detonation
+  9: { 10: 14, 12: 12 },       // Gravitation: +Distortion = Darkness, +Fragmentation
+  10: { 9: 14, 11: 11 },       // Distortion: +Gravitation = Darkness, +Fusion
+  11: { 9: 9, 12: 13 },        // Fusion: +Gravitation, +Fragmentation = Light
+  12: { 11: 13, 10: 10 },      // Fragmentation: +Fusion = Light, +Distortion
+  13: { 13: 13 },              // Light + Light
+  14: { 14: 14 },              // Darkness + Darkness
+};
+// The skillchain an opener then a closer make (null = none). When several pairs match, the highest level wins.
+export function skillchain(opener: number[], closer: number[]): number | null {
+  let best: number | null = null;
+  for (const o of opener) for (const c of closer) {
+    const r = SC_TABLE[o]?.[c];
+    if (r && (best === null || SC_LEVEL(r) > SC_LEVEL(best))) best = r;
+  }
+  return best;
+}

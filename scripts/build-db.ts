@@ -10,7 +10,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { fitMap, type Pair } from "../src/ffxi.ts";
+import { fitMap, pretty, type Pair } from "../src/ffxi.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LSB_SQL = process.env.LSB_SQL ?? join(root, "..", "FFXI-lsb", "sql");
@@ -21,8 +21,29 @@ const UA = { "User-Agent": "ffxi-catseye-companion (personal tool)" };
 const TABLES = [
   "zone_settings", "mob_spawn_points", "mob_groups", "mob_pools", "mob_skill_lists",
   "mob_skills", "blue_spell_list", "spell_list", "mob_droplist",
-  "item_basic", "item_equipment", "item_mods", "item_weapon", "blue_traits", "traits", "zonelines", "npc_list",
+  "item_basic", "item_equipment", "item_mods", "item_weapon", "blue_traits", "traits", "zonelines", "npc_list", "weapon_skills",
 ];
+
+// Skillchain builder: every weapon skill a Lv75 character can have (skill <= 276, plus relic and the ToAU-era mythic
+// weapon skills, unlock ids 15-34) and every blue spell with skillchain properties. sc ids are LSB's SKILLCHAIN_ELEMENT.
+const RELIC_WS = ["final_heaven", "mercy_stroke", "knights_of_round", "scourge", "onslaught", "metatron_torment", "catastrophe",
+  "geirskogul", "blade_metsu", "tachi_kaiten", "randgrith", "gate_of_tartarus", "namas_arrow", "coronach"];
+const WEAPON_TYPES: Record<number, string> = { 1: "Hand-to-Hand", 2: "Dagger", 3: "Sword", 4: "Great Sword", 5: "Axe", 6: "Great Axe",
+  7: "Scythe", 8: "Polearm", 9: "Katana", 10: "Great Katana", 11: "Club", 12: "Staff", 25: "Archery", 26: "Marksmanship" };
+function seedSkillchainSkills(db: DatabaseSync) {
+  db.exec("CREATE TABLE sc_skills (kind TEXT, id INT, name TEXT, weapon TEXT, tag TEXT, lvl INT, sc1 INT, sc2 INT, sc3 INT, PRIMARY KEY (kind, id))");
+  const ins = db.prepare("INSERT INTO sc_skills VALUES (?,?,?,?,?,?,?,?,?)");
+  const ws = db.prepare("SELECT weaponskillid id, name, type, skilllevel lvl, unlock_id u, primary_sc a, secondary_sc b, tertiary_sc c FROM weapon_skills WHERE primary_sc > 0").all() as any[];
+  for (const w of ws) {
+    const tag = RELIC_WS.includes(w.name) ? "Relic" : w.lvl === 0 && w.u >= 15 && w.u <= 34 ? "Mythic" : w.lvl >= 1 && w.lvl <= 276 ? null : undefined;
+    if (tag === undefined || !WEAPON_TYPES[w.type]) continue;
+    ins.run("ws", w.id, pretty(w.name), WEAPON_TYPES[w.type], tag, w.lvl, w.a, w.b, w.c);
+  }
+  // blue_spell_list repeats a spellid per mob skill; the skillchain properties are the same on each row.
+  const blu = db.prepare(`SELECT s.spellid id, s.name, s.level lvl, max(l.primary_sc) a, max(l.secondary_sc) b, max(l.tertiary_sc) c
+    FROM blu_spells s JOIN blue_spell_list l ON l.spellid = s.spellid WHERE s.available = 1 AND l.primary_sc > 0 GROUP BY s.spellid`).all() as any[];
+  for (const b of blu) ins.run("blu", b.id, b.name, "Blue Magic", null, b.lvl, b.a, b.b, b.c);
+}
 
 // ---------- MySQL dump -> SQLite ----------
 
@@ -178,6 +199,7 @@ async function main() {
              JOIN mob_skill_lists sl ON sl.mob_skill_id = bs.mob_skill_id WHERE sl.skill_list_id = mob_index.skill_list_id AND b.available = 1));
     CREATE INDEX ix_mi_zone ON mob_index(zoneid);
     CREATE INDEX ix_mi_name ON mob_index(mobname, zoneid);`);
+  seedSkillchainSkills(db);
   await seedCxLevels(db);
   selfCheck(db);
   db.close();
@@ -533,6 +555,11 @@ function selfCheck(db: DatabaseSync) {
   const one = (sql: string, ...p: any[]) => db.prepare(sql).get(...p) as any;
   for (const t of TABLES) assert(one(`SELECT count(*) c FROM ${t}`).c > 0, `${t} empty`);
   assert.equal(one("SELECT name FROM mod_names WHERE id=8").name, "STR");
+  const vorpal = one("SELECT * FROM sc_skills WHERE kind='ws' AND name='Vorpal Blade'");
+  assert.deepEqual([vorpal.sc1, vorpal.sc2, vorpal.weapon], [4, 8, "Sword"]); // Scission, Impaction
+  assert.equal(one("SELECT tag FROM sc_skills WHERE name='Knights Of Round'").tag, "Relic");
+  assert(!one("SELECT 1 x FROM sc_skills WHERE name='Requiescat'"), "99-era weapon skills left out");
+  assert(one("SELECT count(*) c FROM sc_skills WHERE kind='blu'").c > 30, "blue magic skillchain spells");
   const sheep = one("SELECT * FROM blu_spells WHERE name='Sheep Song'");
   assert.equal(sheep.level, 16);
   const konschtat = one("SELECT count(*) c FROM blu_sources s JOIN blu_spells b USING (spellid) WHERE b.name='Sheep Song' AND s.zoneid=108").c;

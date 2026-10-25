@@ -52,3 +52,13 @@ assert.equal(expGain(snap({ limit: 9800, merits: 3 }), snap({ limit: 200, merits
 assert.equal(expGain(snap({ limit: 500, merits: 4 }), snap({ limit: 500, merits: 2 })), 0);     // merits spent
 assert.equal(expGain(snap({}), snap({ job: 1 })), null);
 console.log("exp gain ok");
+
+import { skillchain, SC_NAMES } from "../src/ffxi.ts";
+const sc = (a: number[], b: number[]) => { const r = skillchain(a, b); return r === null ? null : SC_NAMES[r]; };
+assert.equal(sc([4, 8], [12, 4]), null);             // Vorpal Blade > Savage Blade: nothing
+assert.equal(sc([3, 6], [4, 8]), "Fusion");         // Red Lotus Blade > Vorpal Blade: Fusion beats Scission
+assert.equal(sc([6], [2]), "Gravitation");
+assert.equal(sc([12], [11]), "Light");
+assert.equal(sc([2], [6]), "Detonation");
+assert.equal(sc([13], [13]), "Light");
+console.log("skillchain ok");
