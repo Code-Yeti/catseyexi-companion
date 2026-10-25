@@ -66,3 +66,11 @@ console.log("skillchain ok");
 import { wsPoints } from "../src/ffxi.ts";
 assert.deepEqual([wsPoints(0), wsPoints(299), wsPoints(293), wsPoints(288)], [5, 7, 9, 11]); // none, Scission, Fusion, Light
 console.log("ws points ok");
+
+import { nextTally, dhm } from "../src/ffxi.ts";
+const at = (s: string) => new Date(s).getTime();
+assert.equal(new Date(nextTally(at("2026-10-25T12:00:00Z"))).toISOString(), "2026-10-25T15:00:00.000Z"); // Sunday morning: today
+assert.equal(new Date(nextTally(at("2026-10-25T15:00:00Z"))).toISOString(), "2026-11-01T15:00:00.000Z"); // at the tally: next week
+assert.equal(new Date(nextTally(at("2026-10-28T09:30:00Z"))).toISOString(), "2026-11-01T15:00:00.000Z"); // Wednesday
+assert.equal(dhm(((2 * 24 + 4) * 60 + 13) * 60000 + 59000), "2d 4h 13m");
+console.log("tally ok");

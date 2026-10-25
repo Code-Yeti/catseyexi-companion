@@ -8,6 +8,7 @@ import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { readLive, isFresh, storageIndex, type Live, type Trial } from "./live";
 import TargetCard from "./components/TargetCard";
 import ExpBar from "./components/ExpBar";
+import TallyTimer from "./components/TallyTimer";
 import { usePrefs, chime } from "./prefs";
 import CharacterPage from "./pages/Character";
 import Search from "./pages/Search";
@@ -311,6 +312,7 @@ export default function App() {
               ))}
             </div>
           )}
+          <TallyTimer />
           <ExpBar />
           {char && <div className="who">{char.charname}</div>}
         </nav>

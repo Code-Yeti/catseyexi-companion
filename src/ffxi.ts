@@ -155,3 +155,15 @@ export function wsPoints(scMsg: number) {
   const level = scMsg >= 288 && scMsg <= 289 ? 3 : scMsg >= 290 && scMsg <= 293 ? 2 : scMsg >= 294 && scMsg <= 301 ? 1 : scMsg === 767 || scMsg === 768 ? 3 : 0;
   return WS_POINTS_BASE + level * WS_POINTS_SKILLCHAIN;
 }
+
+// Weekly conquest tally: LSB's world time_server runs it at midnight JST going into Monday = Sunday 15:00 UTC.
+export function nextTally(now: number): number {
+  const d = new Date(now);
+  let t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 15) + ((7 - d.getUTCDay()) % 7) * 86400000;
+  if (t <= now) t += 7 * 86400000;
+  return t;
+}
+export const dhm = (ms: number) => {
+  const m = Math.max(0, Math.floor(ms / 60000));
+  return `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h ${m % 60}m`;
+};
