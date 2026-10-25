@@ -54,9 +54,9 @@ export default function TargetCard() {
     if (!unknownIds.length) return;
     // Exact mob_skill_id match: LSB only teaches a spell from the specific skill id in blue_spell_list.
     q<Skill>(`SELECT ms.mob_skill_id id, ms.mob_skill_name name, s.name spell FROM mob_skills ms
-              LEFT JOIN blu_spell_skills k ON k.mob_skill_id = ms.mob_skill_id LEFT JOIN blu_spells s ON s.spellid = k.spellid
+              LEFT JOIN blu_spell_skills k ON k.mob_skill_id = ms.mob_skill_id LEFT JOIN blu_spells s ON s.spellid = k.spellid AND s.available = 1
               WHERE ms.mob_skill_id IN (${unknownIds.map(Number).join(",")})`)
-      .then((r) => setSkills((m) => new Map([...m, ...unknownIds.map((id): [number, Skill] => [id, r.find((x) => x.id === id) ?? { id, name: `Ability #${id}`, spell: null }])])));
+      .then((r) => setSkills((m) => new Map([...m, ...unknownIds.map((id): [number, Skill] => [id, r.find((x) => x.id === id && x.spell) ?? r.find((x) => x.id === id) ?? { id, name: `Ability #${id}`, spell: null }])])));
   }, [unknownIds.join(",")]);
 
   const have = liveLearned ?? learned;
