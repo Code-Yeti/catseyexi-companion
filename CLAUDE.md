@@ -63,7 +63,7 @@ A Tauri v2 + React + TypeScript desktop companion for the CatseyeXI FFXI private
 
 ## Game addon (addon/catseyecompanion)
 
-CatseyeXI launches through **VanaCore**, which runs Ashita v4 addons (interface 4.16) from `Vanacore/addons/ashita`. Our addon must stay **T2 Information** under catseyexi.com/addon-policy:
+CatseyeXI launches through **VanaCore**, which runs Ashita v4 addons (interface 4.16) from `Vanacore/addons/ashita`. The CatseyeXI moderation team approved the addon (2026-10-25) on the basis that it is read-only. It must stay **T2 Information** under catseyexi.com/addon-policy:
 - It only reads client memory and observes `packet_in`.
 - It never sends packets, queues commands, writes memory, or blocks or modifies packets.
 - Keep the policy grep in the README clean.
