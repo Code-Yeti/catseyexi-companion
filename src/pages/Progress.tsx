@@ -66,6 +66,7 @@ export default function Progress() {
       <h1>Progress</h1>
       {logs && <GameLog logs={logs} saved={live?.logs ? undefined : saved} />}
       <WsTrials />
+      <Ventures />
       {char && (
         <div className="row">
           <div className="job">Jobs at {LEVEL_CAP}<b>{capped}/22</b></div>
@@ -190,6 +191,26 @@ function WsTrials() {
           );
         })}
       </tbody></table>
+    </div>
+  );
+}
+
+// Ventures (CatseyeXI): chat lines about them, captured by the addon. First step: show them as they come, to learn the
+// server's message format before parsing objectives and progress out of them.
+function Ventures() {
+  const { live } = useApp();
+  const [lines, setLines] = useState<{ text: string; time: number }[]>([]);
+  useEffect(() => { getKv("ventureLog").then((v) => v && setLines(JSON.parse(v))); }, [live?.ventureLog?.length, live?.ts]);
+  return (
+    <div className="card">
+      <b>Ventures</b> <span className="muted">· from your chat log (needs the game addon). Type <code>!ventures</code> in game to list today's objectives.</span>
+      {lines.length ? (
+        <div className="venture-log">
+          {lines.slice(-25).reverse().map((l, i) => (
+            <div key={i}><span className="muted">{new Date(l.time * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span> {l.text}</div>
+          ))}
+        </div>
+      ) : <div className="muted" style={{ marginTop: 4 }}>Nothing yet.</div>}
     </div>
   );
 }

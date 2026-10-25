@@ -262,6 +262,20 @@ export default function App() {
       if (dirty) setKv("wsTrials", JSON.stringify(t));
     })().finally(() => { trialBusy.current = false; });
   }, [live?.ts]);
+  // Venture chat lines: kept in user.db (kv "ventureLog", last 200) since venture progress carries across days.
+  const ventureKey = useRef("");
+  useEffect(() => {
+    const lines = live?.ventureLog;
+    if (!lines?.length) return;
+    const k = JSON.stringify(lines[lines.length - 1]);
+    if (k === ventureKey.current) return;
+    ventureKey.current = k;
+    (async () => {
+      const old: { text: string; time: number }[] = JSON.parse((await getKv("ventureLog")) ?? "[]");
+      const seen = new Set(old.map((l) => l.time + "|" + l.text));
+      await setKv("ventureLog", JSON.stringify([...old, ...lines.filter((l) => !seen.has(l.time + "|" + l.text))].slice(-200)));
+    })();
+  }, [live?.ventureLog]);
   // Keep the last quest/mission log so Progress can show it with the game closed.
   const logsKey = useRef("");
   useEffect(() => {
