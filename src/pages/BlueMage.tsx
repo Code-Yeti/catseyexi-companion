@@ -6,7 +6,9 @@ import ZoneMap from "../components/ZoneMap";
 import BluTraits from "./BluTraits";
 import BluSet from "./BluSet";
 
-type Spell = { spellid: number; name: string; level: number; lsb_level: number | null; set_points: number | null; cx_notes: string | null; content_tag: string };
+type Spell = { spellid: number; name: string; level: number; lsb_level: number | null; set_points: number | null; cx_notes: string | null; content_tag: string;
+  description: string | null; spell_type: string | null; family: string | null; duration: string | null; mp: number | null; cast_time: number | null;
+  recast_time: number | null; stats: string | null; sc: string | null; trait: string | null; trait_category: number | null; trait_weight: number | null };
 type Source = { mobname: string; zoneid: number; zone: string; n: number; lo: number; hi: number; cx?: boolean; era?: number };
 
 export default function BlueMage() {
@@ -91,11 +93,15 @@ function SpellRow({ s, learned, canLearn, locked, where, open, onOpen, onToggle 
   const [pick, setPick] = useState<Source>();
   const [pts, setPts] = useState<{ x: number; z: number; label: string }[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const [tiers, setTiers] = useState<number[]>([]);
   // CatseyeXI is a 75-cap server: hide lv1 placeholder spawns, mobs above 75, and Adoulin-era zones (id >= 256).
   const inEra = (r: Source) => !!r.era;
   const list = showAll ? sources : sources?.filter(inEra);
   const hidden = (sources?.length ?? 0) - (sources?.filter(inEra).length ?? 0);
 
+  useEffect(() => {
+    if (open && s.trait_category) q<{ points: number }>("SELECT points FROM blu_trait_tiers WHERE category=$1 AND NOT jp_only ORDER BY points", s.trait_category).then((r) => setTiers(r.map((x) => x.points)));
+  }, [open]);
   useEffect(() => {
     if (!open || sources) return;
     // Levels are CatseyeXI's where the build fetched them (mob_index.cx_*); era = CatseyeXI content within reach.
@@ -116,13 +122,25 @@ function SpellRow({ s, learned, canLearn, locked, where, open, onOpen, onToggle 
     <>
       <tr className="click" onClick={onOpen}>
         <td onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={learned} onChange={onToggle} disabled={locked} title={locked ? "Synced from the game" : undefined} /></td>
-        <td className={canLearn ? "" : "muted"}>{s.name} {s.content_tag === "CATSEYE" && <span className="tag cx">CX only</span>}{where && <span className="tag own" title="Where you learned it">{where}</span>}</td>
+        <td className={canLearn ? "" : "muted"}>{s.name} {s.content_tag === "CATSEYE" && <span className="tag cx">CX only</span>}{where && <span className="tag own" title="Where you learned it">{where}</span>}
+          {(s.description || s.trait) && <div className="muted spell-desc">{s.description}{s.description && s.trait && " · "}{s.trait && <>Trait: {pretty(s.trait)}</>}</div>}</td>
         <td>{s.level}{s.lsb_level && s.lsb_level !== s.level ? <span className="tag cx">retail {s.lsb_level}</span> : null}</td>
         <td className="muted">{s.set_points ?? ""}</td>
         <td>{s.cx_notes ? <span style={{ color: "var(--cx)" }}>{s.cx_notes}</span> : <span className="muted">{open ? "" : "click for mobs"}</span>}</td>
       </tr>
       {open && (
         <tr><td></td><td colSpan={4}>
+          <div className="spell-info">
+            {s.spell_type && <div><span className="muted">Type</span> {s.spell_type}</div>}
+            {s.family && <div><span className="muted">Family</span> {s.family}</div>}
+            {s.mp != null && <div><span className="muted">MP</span> {s.mp}</div>}
+            {s.cast_time != null && <div><span className="muted">Cast</span> {s.cast_time}s</div>}
+            {s.recast_time != null && <div><span className="muted">Recast</span> {s.recast_time}s</div>}
+            {s.duration && <div><span className="muted">Duration</span> {s.duration}</div>}
+            <div><span className="muted">Stats when set</span> {s.stats ?? "none"}</div>
+            {s.trait && <div><span className="muted">Trait</span> {pretty(s.trait)}{s.trait_weight ? <> +{s.trait_weight}{tiers.length ? <span className="muted"> (tiers at {tiers.join(" / ")} points)</span> : null}</> : null}</div>}
+            {s.sc && <div><span className="muted">Skillchain</span> {s.sc}</div>}
+          </div>
           {s.cx_notes && <div className="cxnote">CatseyeXI: {s.cx_notes}</div>}
           {!list ? "Loading…" : !list.length && !hidden ? <span className="muted">No LSB spawn data. Follow the CatseyeXI note above.</span> : (
             <table>

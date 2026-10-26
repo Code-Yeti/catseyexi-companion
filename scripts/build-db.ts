@@ -10,7 +10,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { fitMap, pretty, type Pair } from "../src/ffxi.ts";
+import { fitMap, pretty, SC_NAMES, type Pair } from "../src/ffxi.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LSB_SQL = process.env.LSB_SQL ?? join(root, "..", "FFXI-lsb", "sql");
@@ -20,7 +20,7 @@ const UA = { "User-Agent": "ffxi-catseye-companion (personal tool)" };
 
 const TABLES = [
   "zone_settings", "mob_spawn_points", "mob_groups", "mob_pools", "mob_skill_lists",
-  "mob_skills", "blue_spell_list", "spell_list", "mob_droplist",
+  "mob_skills", "blue_spell_list", "blue_spell_mods", "spell_list", "mob_droplist",
   "item_basic", "item_equipment", "item_mods", "item_weapon", "blue_traits", "traits", "zonelines", "npc_list", "weapon_skills",
 ];
 
@@ -183,6 +183,7 @@ async function main() {
 
   db.exec("VACUUM");
   diffReport(db);
+  await seedBluInfo(db);
 
   // One row per mob per zone for the sortable Mobs table (needs blu_spells from diffReport).
   db.exec(`
@@ -417,6 +418,62 @@ const QUEST_LOGS: Record<string, number> = { SANDORIA: 0, BASTOK: 1, WINDURST: 2
   AHT_URHGAN: 6, CRYSTAL_WAR: 7, ABYSSEA: 8, ADOULIN: 9, COALITION: 10 };
 const MISSION_LOGS: Record<string, number> = { SANDORIA: 0, BASTOK: 1, WINDURST: 2, ZILART: 3, TOAU: 4, WOTG: 5, COP: 6 };
 
+// What each blue spell does, for the Spells list: the header comment of its LSB script (description, monster family,
+// physical/magical type, duration), plus MP/cast/recast from spell_list, set stats from blue_spell_mods and skillchain
+// properties from blue_spell_list.
+async function seedBluInfo(db: DatabaseSync) {
+  const lsb = join(LSB_SQL, "..");
+  const git = (...a: string[]) => execFileSync("git", ["-C", lsb, ...a], { encoding: "utf8", maxBuffer: 1 << 26 });
+  for (const c of ["description TEXT", "family TEXT", "spell_type TEXT", "duration TEXT", "mp INT", "cast_time REAL", "recast_time REAL", "stats TEXT", "sc TEXT", "trait TEXT"])
+    db.exec(`ALTER TABLE blu_spells ADD COLUMN ${c}`);
+  const files = new Set(git("ls-tree", "--name-only", "HEAD", "scripts/actions/spells/blue/").split(/\r?\n/));
+  const upd = db.prepare("UPDATE blu_spells SET description=?, family=?, spell_type=?, duration=?, mp=?, cast_time=?, recast_time=?, stats=?, sc=? WHERE spellid=?");
+  let described = 0;
+  for (const r of db.prepare(`SELECT s.spellid, s.name, s.mpCost, s.castTime, s.recastTime, b.primary_sc, b.secondary_sc, b.tertiary_sc,
+      (SELECT group_concat(n.name || CASE WHEN m.value > 0 THEN '+' ELSE '' END || CAST(m.value AS INT), ', ') FROM blue_spell_mods m
+       JOIN mod_names n ON n.id = m.modid WHERE m.spellid = s.spellid AND m.modid > 0) stats
+      FROM spell_list s JOIN blue_spell_list b ON b.spellid = s.spellid GROUP BY s.spellid`).all() as any[]) {
+    const f = `scripts/actions/spells/blue/${r.name}.lua`;
+    const h: Record<string, string> = {}, desc: string[] = [];
+    if (files.has(f)) {
+      for (const line of git("show", `HEAD:${f}`).split(/\r?\n/).slice(1, 25)) {
+        if (!line.startsWith("-- ")) continue;
+        const t = line.slice(3).trim();
+        // Description: every line between "Spell:" and "Spell cost:" (it can itself look like "Additional effect: ...").
+        if (h.spell && !h["spell cost"] && !/^Spell cost:/i.test(t)) { desc.push(t); continue; }
+        const kv = t.match(/^([A-Za-z ()]+):\s*(.*)$/);
+        if (kv) h[kv[1].toLowerCase()] = kv[2].replace(/^[A-Za-z ]+:\s*/, "").trim(); // "Casting Time: Casting Time: 3 seconds"
+      }
+      if (desc.length) described++;
+    }
+    const sc = [r.primary_sc, r.secondary_sc, r.tertiary_sc].filter((x) => x > 0).map((x) => SC_NAMES[x]).join(", ");
+    upd.run(desc.join(" ") || null, h["monster type"] ?? null, h["spell type"] ?? null, h.duration ?? null, r.mpCost, r.castTime / 1000, r.recastTime / 1000, r.stats, sc || null, r.spellid);
+  }
+  db.exec("UPDATE blu_spells SET trait = (SELECT name FROM blu_trait_tiers t WHERE t.category = blu_spells.trait_category LIMIT 1)");
+  // Spells with no LSB script (later retail spells CatseyeXI moved down, and CatseyeXI-only ones): bg-wiki's
+  // {{Blue Magic}} template, one batched request. Only fills what LSB left empty.
+  const missing = db.prepare("SELECT spellid, name FROM blu_spells WHERE available = 1 AND description IS NULL").all() as any[];
+  const field = (b: string, k: string) => b.match(new RegExp(`\\|${k}=([^\\n]*)`))?.[1].replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, "$1").replace(/<br ?\/?>/g, ", ").trim() || null;
+  const fill = db.prepare(`UPDATE blu_spells SET description = ?, spell_type = coalesce(spell_type, ?), family = coalesce(family, ?), duration = coalesce(duration, ?),
+    mp = coalesce(mp, ?), cast_time = coalesce(cast_time, ?), recast_time = coalesce(recast_time, ?), stats = coalesce(stats, ?), trait = coalesce(trait, ?) WHERE spellid = ?`);
+  const byName = new Map(missing.map((r) => [norm(r.name), r.spellid]));
+  for (let i = 0; i < missing.length; i += 50) {
+    const j = await wikiQuery({ action: "query", prop: "revisions", rvprop: "content", rvslots: "main", redirects: "1", titles: missing.slice(i, i + 50).map((r) => r.name).join("|") });
+    const alias = new Map<string, string>(((j.query.redirects ?? []) as any[]).map((r) => [r.to, r.from]));
+    for (const p of Object.values(j.query.pages) as any[]) {
+      const b = p.revisions?.[0]?.slots?.main?.["*"]?.match(/\{\{Blue Magic([\s\S]*?)\n\}\}/)?.[1];
+      const id = byName.get(norm(alias.get(p.title) ?? p.title));
+      if (!b || id === undefined) continue;
+      const num = (k: string) => { const v = field(b, k)?.match(/[\d.]+/)?.[0]; return v ? Number(v) : null; };
+      const type = [field(b, "type"), field(b, "damage")].filter(Boolean);
+      fill.run(field(b, "desc"), type.length ? `${type[0]}${type[1] ? ` (${type[1]})` : ""}` : null, field(b, "mtype"), field(b, "duration"),
+        num("mp"), num("cast"), num("recast"), field(b, "stats")?.replace(/\s*([+-])\s*/g, "$1").replace(/(\d)\s+(?=[A-Z])/g, "$1, ") ?? null, field(b, "trait"), id);
+      described++;
+    }
+  }
+  console.log(`blue spell descriptions: ${described} (${missing.length} looked up on bg-wiki)`);
+}
+
 function seedQuestNames(db: DatabaseSync) {
   const lsb = join(LSB_SQL, "..");
   const show = (f: string) => execFileSync("git", ["-C", lsb, "show", `HEAD:${f}`], { encoding: "utf8", maxBuffer: 1 << 26 });
@@ -562,12 +619,16 @@ function selfCheck(db: DatabaseSync) {
   assert(one("SELECT count(*) c FROM sc_skills WHERE kind='blu'").c > 30, "blue magic skillchain spells");
   const sheep = one("SELECT * FROM blu_spells WHERE name='Sheep Song'");
   assert.equal(sheep.level, 16);
+  assert.equal(sheep.description, "Puts all enemies within range to sleep");
+  assert.equal(sheep.spell_type, "Magical (Light)");
+  assert.equal(sheep.stats, "HP+5, CHR+1");
   const konschtat = one("SELECT count(*) c FROM blu_sources s JOIN blu_spells b USING (spellid) WHERE b.name='Sheep Song' AND s.zoneid=108").c;
   assert(konschtat > 0, "Sheep Song should be learnable in Konschtat Highlands");
   const acrid = one("SELECT * FROM blu_spells WHERE name='Acrid Stream'");
   assert.equal(acrid.level, 75);
   assert.match(acrid.cx_notes, /Clionid/);
   assert.equal(acrid.available, 1);
+  assert.equal(one("SELECT sc FROM blu_spells WHERE name='Head Butt'").sc, "Impaction");
   assert(one("SELECT count(*) c FROM mob_droplist d JOIN item_basic i ON i.itemid=d.itemId WHERE i.name='sheepskin'").c > 0);
   assert(one("SELECT count(*) c FROM checklist_seed WHERE list='CatsEyeXI Quests'").c > 50);
   assert(one("SELECT count(*) c FROM checklist_seed WHERE list='Bastok Missions'").c >= 15);

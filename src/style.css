@@ -116,3 +116,5 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .tally + .who { margin-top: 0; }
 .venture-log { margin-top: 6px; max-height: 260px; overflow-y: auto; font-family: Consolas, monospace; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
 tr.current td { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.spell-desc { font-size: 12px; margin-top: 2px; }
+.spell-info { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 4px 0 8px; }
