@@ -172,9 +172,15 @@ export function nextTally(now: number): number {
   if (t <= now) t += 7 * 86400000;
   return t;
 }
+// Daily reset (ventures, dailies): also JST midnight, 15:00 UTC.
+export function nextDaily(now: number): number {
+  const d = new Date(now);
+  const t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 15);
+  return t > now ? t : t + 86400000;
+}
 export const dhm = (ms: number) => {
   const m = Math.max(0, Math.floor(ms / 60000));
-  return `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h ${m % 60}m`;
+  return `${m >= 1440 ? `${Math.floor(m / 1440)}d ` : ""}${Math.floor((m % 1440) / 60)}h ${m % 60}m`;
 };
 
 // CatseyeXI chat replies (captured by the addon). "!ventures" prints a header then lines like
