@@ -10,7 +10,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { fitMap, pretty, SC_NAMES, type Pair } from "../src/ffxi.ts";
+import { fitMap, pretty, nameKey, SC_NAMES, type Pair } from "../src/ffxi.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LSB_SQL = process.env.LSB_SQL ?? join(root, "..", "FFXI-lsb", "sql");
@@ -176,6 +176,7 @@ async function main() {
   seedQuestNames(db); // before seedChecklists, which builds the mission lists from mission_names
   await seedChecklists(db);
   await seedMaps(db);
+  await seedDisplayNames(db); // before VIEWS: the zones view uses it
   db.exec(VIEWS);
 
   const overrides = join(root, "data", "overrides.sql");
@@ -188,7 +189,7 @@ async function main() {
   // One row per mob per zone for the sortable Mobs table (needs blu_spells from diffReport).
   db.exec(`
     CREATE TABLE mob_index AS
-    SELECT s.mobname, replace(s.mobname,'_',' ') AS name, s.zoneid, z.name AS zone, min(s.minLevel) AS lo, max(s.maxLevel) AS hi,
+    SELECT s.mobname, coalesce((SELECT d.name FROM display_names d WHERE d.key = replace(lower(s.mobname), '_', '')), replace(s.mobname,'_',' ')) AS name, s.zoneid, z.name AS zone, min(s.minLevel) AS lo, max(s.maxLevel) AS hi,
            count(*) AS n, max(s.respawntime) AS respawn, max(p.aggro) AS aggro, max(p.links) AS links, max(p.true_detection) AS truesight,
            max(s.skill_list_id) AS skill_list_id, max(s.poolid) AS poolid, NULL AS family, NULL AS blu,
            NULL AS cx_lo, NULL AS cx_hi, 0 AS era
@@ -281,6 +282,24 @@ async function seedCxLevels(db: DatabaseSync) {
     UPDATE mob_index SET era = (hi > 1 AND (zoneid < 256 OR zoneid IN (SELECT zoneid FROM cx_zones)) AND coalesce(cx_lo, lo) <= ${REACH});`);
   const z = db.prepare("SELECT group_concat(z.name, ', ') n FROM cx_zones c JOIN zones z USING (zoneid)").get() as any;
   console.log(`CatseyeXI levels: ${fetched} new requests; zones >= 256 on CatseyeXI: ${z.n}`);
+}
+
+// LSB names drop apostrophes ("Omaern", "AlTaieu"). bg-wiki's page titles keep them: every Bestiary and Areas title
+// with an apostrophe, keyed like ffxi.ts nameKey (lowercase, letters and digits only).
+async function seedDisplayNames(db: DatabaseSync) {
+  db.exec("CREATE TABLE display_names (key TEXT PRIMARY KEY, name TEXT)");
+  const ins = db.prepare("INSERT OR IGNORE INTO display_names VALUES (?,?)");
+  for (const cat of ["Category:Areas", "Category:Bestiary"])
+    for (let cont: any = {}; ;) {
+      const j = await wikiQuery({ action: "query", list: "categorymembers", cmtitle: cat, cmlimit: "500", cmtype: "page", ...cont });
+      for (const { title } of j.query.categorymembers as { title: string }[]) {
+        const name = title.replace(/\s*\(.*\)$/, ""); // "Foo (Zone)" disambiguation
+        if (name.includes("'")) ins.run(nameKey(name), name);
+      }
+      if (!j.continue) break;
+      cont = j.continue;
+    }
+  console.log(`display names: ${(db.prepare("SELECT count(*) c FROM display_names").get() as any).c}`);
 }
 
 async function seedMaps(db: DatabaseSync) {
@@ -547,7 +566,7 @@ FROM mob_spawn_points sp
 JOIN mob_groups g ON g.groupid = sp.groupid AND g.zoneid = (sp.mobid >> 12) & 4095
 JOIN mob_pools p ON p.poolid = g.poolid;
 
-CREATE VIEW zones AS SELECT zoneid, replace(name,'_',' ') AS name FROM zone_settings;
+CREATE VIEW zones AS SELECT zoneid, coalesce((SELECT d.name FROM display_names d WHERE d.key = replace(replace(replace(lower(z.name), '_', ''), '-', ''), '''', '')), replace(z.name,'_',' ')) AS name FROM zone_settings z;
 
 -- spell -> mob skill it is learned from (LSB blue_spell_list + CatseyeXI-only spells matched by skill name).
 CREATE TABLE blu_spell_skills (spellid INT, mob_skill_id INT);
@@ -617,6 +636,8 @@ function selfCheck(db: DatabaseSync) {
   assert.equal(one("SELECT tag FROM sc_skills WHERE name='Knights Of Round'").tag, "Relic");
   assert(!one("SELECT 1 x FROM sc_skills WHERE name='Requiescat'"), "99-era weapon skills left out");
   assert(one("SELECT count(*) c FROM sc_skills WHERE kind='blu'").c > 30, "blue magic skillchain spells");
+  assert.equal(one("SELECT name FROM zones WHERE zoneid=33").name, "Al'Taieu");
+  assert.equal(one("SELECT name FROM mob_index WHERE mobname='Omaern' LIMIT 1").name, "Om'aern");
   const sheep = one("SELECT * FROM blu_spells WHERE name='Sheep Song'");
   assert.equal(sheep.level, 16);
   assert.equal(sheep.description, "Puts all enemies within range to sleep");

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { pretty, expGain, wsPoints, parseWsPoints, type ExpSnap } from "./ffxi";
+import { pretty, setDisplayNames, expGain, wsPoints, parseWsPoints, type ExpSnap } from "./ffxi";
 import "./style.css";
 import { Ctx, type Friend, type Page } from "./ctx";
 import { getChar, getOwned, type Character } from "./catseye";
@@ -132,7 +132,8 @@ export default function App() {
       if (id) { await loadChar(id); await loadChar(id, true, { quiet: true }); }
     }).catch((e) => setErr(String(e)));
     getKv("friendToasts").then((v) => { toastsRef.current = v !== "0"; setToastsState(v !== "0"); });
-    q<{ zoneid: number; name: string }>("SELECT zoneid, name FROM zones").then((r) => setZones(new Map(r.map((z) => [z.zoneid, z.name]))));
+    q<{ key: string; name: string }>("SELECT key, name FROM display_names").then(setDisplayNames)
+      .then(() => q<{ zoneid: number; name: string }>("SELECT zoneid, name FROM zones")).then((r) => setZones(new Map(r.map((z) => [z.zoneid, z.name])))); // re-render with them
     uq<{ id: string }>("SELECT id FROM friends ORDER BY added").then(async (r) => {
       friendIds.current = r.map((x) => x.id);
       setFriends(r.map((x) => ({ id: x.id })));

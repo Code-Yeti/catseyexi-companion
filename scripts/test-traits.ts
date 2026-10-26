@@ -90,3 +90,11 @@ assert.deepEqual(v.tiers[6], { pool: "B", lo: 10, hi: 19, zone: "East Ronfaure [
 assert.deepEqual(v.hvnm, { zone: "Sauromugue Champaign", nm: "Swiftsting", pct: 65 });
 assert.deepEqual(parseWsPoints("----== SystemMessage ==----The weapon in Arcadea's main slot has 120 WS points."), { slot: 0, points: 120 });
 console.log("chat parsers ok");
+
+import { pretty, nameKey, setDisplayNames } from "../src/ffxi.ts";
+setDisplayNames([{ key: nameKey("Om'aern"), name: "Om'aern" }]);
+assert.equal(pretty("Omaern"), "Om'aern");
+assert.equal(pretty("Omaern_BST"), "Om'aern BST");
+assert.equal(pretty("mad_sheep"), "Mad Sheep");
+assert.equal(nameKey("Escha - Zi'Tah"), nameKey("Escha_ZiTah"));
+console.log("display names ok");

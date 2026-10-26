@@ -18,9 +18,18 @@ export const NATIONS = ["San d'Oria", "Bastok", "Windurst"];
 // accountType 1 = Crystal Warrior (site hides AH/delivery for it). Other values aren't documented.
 export const accountLabel = (t: number) => (t === 1 ? "Crystal Warrior" : `Standard (type ${t})`);
 
-// LSB internal names are lowercase_with_underscores.
-export const pretty = (s: string) => s.replace(/_/g, " ").replace(/\b[a-z]/g, (c) => c.toUpperCase());
-export const like = (s: string) => `%${s.trim().toLowerCase().replace(/\s+/g, "_")}%`;
+// LSB (and CatseyeXI's API) store names lowercase_with_underscores and without apostrophes ("Omaern", "AlTaieu").
+// nameKey matches a game or wiki name to them; App loads bg-wiki's spellings (reference.db display_names) so pretty
+// shows "Om'aern" and wiki links resolve.
+export const nameKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+const displayNames = new Map<string, string>();
+export const setDisplayNames = (rows: { key: string; name: string }[]) => rows.forEach((r) => displayNames.set(r.key, r.name));
+export const pretty = (s: string): string => {
+  const job = s.match(/^(.+)_([A-Z]{3})$/); // LSB job variants: "Omaern_BST"
+  if (job && displayNames.has(nameKey(job[1]))) return `${displayNames.get(nameKey(job[1]))} ${job[2]}`;
+  return displayNames.get(nameKey(s)) ?? s.replace(/_/g, " ").replace(/\b[a-z]/g, (c) => c.toUpperCase());
+};
+export const like = (s: string) => `%${s.trim().toLowerCase().replace(/'/g, "").replace(/\s+/g, "_")}%`;
 
 export const DROP_TYPE: Record<number, string> = { 0: "Drop", 2: "Steal", 4: "Despoil" };
 export const wikiUrl = (title: string) => `https://www.bg-wiki.com/ffxi/${encodeURIComponent(title.replace(/ /g, "_"))}`;

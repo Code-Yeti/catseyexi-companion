@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../ctx";
 import { q, uq } from "../db";
-import { pretty } from "../ffxi";
+import { pretty, nameKey } from "../ffxi";
 import { usePrefs, chime } from "../prefs";
 
 type Info = { mobname: string; lo: number; hi: number; cx: number; aggro: number; links: number; truesight: number; family: string | null; blu: string | null };
@@ -28,9 +28,9 @@ export default function TargetCard() {
     // Exact: the client's server id is LSB's mobid (CatseyeXI forked LSB's SQL). Fallback: the name, preferring this zone.
     (async () => {
       const byId = await q<Info>(`SELECT ${cols} FROM mob_spawn_points sp JOIN mob_groups g ON g.groupid = sp.groupid AND g.zoneid = $2
-        JOIN mob_index mi ON mi.poolid = g.poolid AND mi.zoneid = g.zoneid WHERE sp.mobid = $1 LIMIT 1`, t.id, (t.id >> 12) & 4095); // zone is encoded in the id
-      const r = byId.length ? byId : await q<Info>(`SELECT ${cols} FROM mob_index mi WHERE lower(mobname) = lower($1) ORDER BY zoneid = $2 DESC LIMIT 1`,
-        t.name.replace(/ /g, "_"), live!.zone);
+        JOIN mob_index mi ON mi.mobname = sp.mobname AND mi.zoneid = g.zoneid WHERE sp.mobid = $1 LIMIT 1`, t.id, (t.id >> 12) & 4095); // zone is encoded in the id
+      const r = byId.length ? byId : await q<Info>(`SELECT ${cols} FROM mob_index mi WHERE replace(lower(mobname), '_', '') = $1 ORDER BY zoneid = $2 DESC LIMIT 1`,
+        nameKey(t.name), live!.zone); // the game says "Om'aern", LSB "Omaern"
       if (current) setInfo(r[0] ?? null);
     })();
     return () => { current = false; };
