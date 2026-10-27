@@ -47,6 +47,9 @@ import { expGain, type ExpSnap } from "../src/ffxi.ts";
 const snap = (o: Partial<ExpSnap>): ExpSnap => ({ job: 16, lvl: 66, cur: 1000, need: 20000, limit: 0, merits: 0, ...o });
 assert.equal(expGain(snap({}), snap({ cur: 1300 })), 300);
 assert.equal(expGain(snap({ cur: 19900 }), snap({ lvl: 67, cur: 150, need: 21000 })), 250); // level-up
+const zoning = snap({ cur: 0, need: 0, limit: 0, merits: 0 });
+assert.equal(expGain(snap({ cur: 1300 }), zoning), 0);
+assert.equal(expGain(zoning, snap({ cur: 1300 })), 0); // the reload after zoning is not a gain
 assert.equal(expGain(snap({}), snap({ cur: 400 })), 0);                                  // death: EXP lost
 assert.equal(expGain(snap({ limit: 9800, merits: 3 }), snap({ limit: 200, merits: 4 })), 400); // merit rollover
 assert.equal(expGain(snap({ limit: 500, merits: 4 }), snap({ limit: 500, merits: 2 })), 0);     // merits spent
@@ -101,3 +104,16 @@ assert.equal(pretty("Omaern_BST"), "Om'aern BST");
 assert.equal(pretty("mad_sheep"), "Mad Sheep");
 assert.equal(nameKey("Escha - Zi'Tah"), nameKey("Escha_ZiTah"));
 console.log("display names ok");
+
+import { parseTraining } from "../src/ffxi.ts";
+const tl = (texts: string[]) => texts.map((text, i) => ({ text, time: 100 + i }));
+const tr = parseTraining(tl(["You defeated a designated target. (Progress: 2/4)",
+  "Records of Eminence: Vanquish Multiple Enemies I.", "Progress: 78/200.",
+  "Records of Eminence: Conflict: Boyahda Tree.", "Progress: 9/10.",
+  "Records of Eminence: Physical Damage Kills.Progress: 9/20.", "Limit chain #3!",
+  "Records of Eminence: Conflict: Boyahda Tree.", "Progress: 10/10."]));
+assert.deepEqual(tr.regime, { name: "Training regime", done: 2, need: 4, time: 100, complete: false });
+assert.deepEqual(tr.roe.map((r) => `${r.name} ${r.done}/${r.need}`), ["Conflict: Boyahda Tree 10/10", "Physical Damage Kills 9/20", "Vanquish Multiple Enemies I 78/200"]);
+assert.equal(tr.other.length, 0);
+assert.equal(parseTraining(tl(["You defeated a designated target. (Progress: 4/4)", "You have completed the training regime."])).regime?.complete, true);
+console.log("training ok");

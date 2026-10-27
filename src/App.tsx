@@ -18,6 +18,7 @@ import Item from "./pages/Item";
 import BlueMage from "./pages/BlueMage";
 import Gear from "./pages/Gear";
 import Progress from "./pages/Progress";
+import Training from "./pages/Training";
 import Friends from "./pages/Friends";
 import Settings from "./pages/Settings";
 import LiveMap from "./pages/LiveMap";
@@ -26,7 +27,7 @@ import Skillchains from "./pages/Skillchains";
 
 const NAV: [Page["name"], string][] = [
   ["character", "Character"], ["map", "Map"], ["search", "Search"], ["mobs", "Mobs"], ["blu", "Blue Magic"], ["skillchains", "Skillchains"],
-  ["gear", "Gear"], ["storage", "Storage"], ["progress", "Progress"], ["friends", "Friends"], ["settings", "Settings"],
+  ["gear", "Gear"], ["storage", "Storage"], ["progress", "Progress"], ["training", "Training"], ["friends", "Friends"], ["settings", "Settings"],
 ];
 const FRIEND_POLL_MS = 3 * 60_000; // be gentle with catseyexi.com: your character + each friend, once per tick
 const INVENTORY_EVERY = 5;          // ticks (~15 min); inventory changes slowly
@@ -271,7 +272,8 @@ export default function App() {
       if (dirty) setKv("wsTrials", JSON.stringify(t));
     })().finally(() => { trialBusy.current = false; });
   }, [live?.ts]);
-  // Venture chat lines: kept in user.db (kv "ventureLog", last 200) since venture progress carries across days.
+  // Tracked chat lines (Ventures, training, Records of Eminence): kept in user.db (kv "ventureLog", last 500) so the
+  // Progress and Training pages work with the game closed. n tells apart identical lines in the same second.
   const ventureKey = useRef("");
   useEffect(() => {
     const lines = live?.ventureLog;
@@ -280,9 +282,10 @@ export default function App() {
     if (k === ventureKey.current) return;
     ventureKey.current = k;
     (async () => {
-      const old: { text: string; time: number }[] = JSON.parse((await getKv("ventureLog")) ?? "[]");
-      const seen = new Set(old.map((l) => l.time + "|" + l.text));
-      await setKv("ventureLog", JSON.stringify([...old, ...lines.filter((l) => !seen.has(l.time + "|" + l.text))].slice(-200)));
+      const old: { text: string; time: number; n?: number }[] = JSON.parse((await getKv("ventureLog")) ?? "[]");
+      const id = (l: { text: string; time: number; n?: number }) => `${l.time}|${l.n ?? ""}|${l.text}`;
+      const seen = new Set(old.map(id));
+      await setKv("ventureLog", JSON.stringify([...old, ...lines.filter((l) => !seen.has(id(l)))].slice(-500)));
     })();
   }, [live?.ventureLog]);
   // Keep the last quest/mission log so Progress can show it with the game closed.
@@ -307,6 +310,7 @@ export default function App() {
       case "blu": return <BlueMage />;
       case "gear": return <Gear />;
       case "progress": return <Progress />;
+      case "training": return <Training />;
       case "friends": return <Friends />;
       case "settings": return <Settings />;
       case "map": return <LiveMap />;

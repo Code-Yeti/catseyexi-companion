@@ -81,6 +81,7 @@ Contents of `live.json`:
 - `events` ("learns" message 419) feed popups and `blu_history`.
 - `bluSet` holds client ids from a memory signature, plus `bluPoints`.
 - `storage` covers every bag.
+- `ventureLog` (name kept from its first use) holds tracked chat lines from `text_in`: Ventures, replies to your own `!` commands, training regime / Records of Eminence / "(n/m)" progress. `n` is a per-addon-run line number, so identical lines in one second stay distinct. App appends them to kv `ventureLog` (last 500); Progress parses `parseVentures`, Training `parseTraining`.
 - `logs` holds raw 0x056 payloads per port. They're decoded in the app (`decodeLogs`) against `quest_names` / `mission_names`, which come from LSB `scripts/globals/quests.lua` / `missions.lua` via `git show`.
 
 Testing without the game: write a `live.json` in the same format, using the user's real character name and current learned list, so the learned sync stays a no-op. Clean up any test `blu_history` rows afterwards.

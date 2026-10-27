@@ -120,6 +120,9 @@ export function decodeLogs(logs: Record<string, string>) {
 export type ExpSnap = { job: number; lvl: number; cur: number; need: number; limit: number; merits: number };
 export function expGain(a: ExpSnap, b: ExpSnap): number | null {
   if (a.job !== b.job) return null;
+  // While zoning the client reports everything as 0: no gain into or out of that, or the reload counts as all your EXP.
+  const unloaded = (s: ExpSnap) => !s.need || (!s.cur && !s.limit && !s.merits);
+  if (unloaded(a) || unloaded(b)) return 0;
   const exp = b.lvl === a.lvl ? b.cur - a.cur : b.lvl === a.lvl + 1 ? a.need - a.cur + b.cur : 0;
   const limit = b.limit - a.limit + (b.merits > a.merits ? (b.merits - a.merits) * 10000 : 0);
   return Math.max(0, exp) + Math.max(0, limit);
@@ -208,4 +211,34 @@ export function parseVentures(lines: { text: string; time: number }[]): Ventures
 export function parseWsPoints(text: string): { slot: number; points: number } | null {
   const m = text.match(/weapon in .+?'s (main|sub|ranged) slot has (\d+) WS points/i);
   return m ? { slot: ["main", "sub", "ranged"].indexOf(m[1].toLowerCase()), points: +m[2] } : null;
+}
+
+// Training progress from chat (the addon keeps these lines): training regimes ("You defeated a designated target.
+// (Progress: 2/4)"), Records of Eminence (a "Records of Eminence: <name>." line, then "Progress: 78/200.", or both on
+// one line once the addon strips the newline) and any other "(n/m)" count, keyed by its text without the numbers.
+export type Count = { name: string; done: number; need: number; time: number };
+export type Training = { regime?: Count & { complete: boolean }; roe: Count[]; other: Count[] };
+export function parseTraining(lines: { text: string; time: number }[]): Training {
+  const roe = new Map<string, Count>(), other = new Map<string, Count>();
+  let regime: Training["regime"], pending: string | undefined;
+  for (const { text, time } of lines) {
+    let m = text.match(/designated target.*\(Progress: (\d+)\/(\d+)\)/i);
+    if (m) { regime = { name: "Training regime", done: +m[1], need: +m[2], time, complete: +m[1] >= +m[2] }; continue; }
+    if (/completed (?:the|your) training regime/i.test(text)) { if (regime) regime.complete = true; continue; }
+    m = text.match(/Records of Eminence: (.+?)\.?\s*(?:Progress: (\d+)\/(\d+)\.?)?$/);
+    if (m) {
+      pending = m[1];
+      if (m[2]) { roe.set(pending, { name: pending, done: +m[2], need: +m[3], time }); pending = undefined; }
+      continue;
+    }
+    m = text.match(/^Progress: (\d+)\/(\d+)/);
+    if (m) { if (pending) roe.set(pending, { name: pending, done: +m[1], need: +m[2], time }); pending = undefined; continue; }
+    m = text.match(/\((\d+)\/(\d+)\)/);
+    if (m) {
+      const name = text.replace(m[0], "").replace(/\s+([.!])/g, "$1").trim();
+      other.set(name, { name, done: +m[1], need: +m[2], time });
+    }
+  }
+  const newest = (a: Count, b: Count) => b.time - a.time;
+  return { regime, roe: [...roe.values()].sort(newest), other: [...other.values()].sort(newest) };
 }
