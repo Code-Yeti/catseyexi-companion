@@ -2,6 +2,7 @@ import hume from "../assets/portraits/hume.jpg";
 import elvaan from "../assets/portraits/elvaan.jpg";
 import mithra from "../assets/portraits/mithra.jpg";
 import galka from "../assets/portraits/galka.jpg";
+import mask from "../assets/portraits/mask.png"; // brush circle, white = shown (made from images/character mask.jpg)
 
 // Character art: one 5×4 sheet per race (both genders share it), cells in job id order (WAR..SCH).
 // Sheet sizes differ, so each keeps its own cell aspect (cell width / height).
@@ -15,6 +16,7 @@ export default function Portrait({ race, job, size, className }: { race: string 
   if (!sheet || !(i >= 0 && i < 20)) return null;
   return (
     <div className={className} style={{ width: size, aspectRatio: sheet[1], flex: "none", backgroundImage: `url(${sheet[0]})`, backgroundSize: "500% 400%",
+      mask: `url(${mask}) center / 100% 100% no-repeat`,
       backgroundPosition: `${(i % 5) * 25}% ${Math.floor(i / 5) * (100 / 3)}%` }} />
   );
 }
