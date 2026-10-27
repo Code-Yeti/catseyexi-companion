@@ -213,6 +213,32 @@ export function parseWsPoints(text: string): { slot: number; points: number } | 
   return m ? { slot: ["main", "sub", "ranged"].indexOf(m[1].toLowerCase()), points: +m[2] } : null;
 }
 
+// Records of Eminence limited-time challenges: LSB scripts/globals/roe.lua timedSchedule (record ids 4008-4021 from
+// roe_records.lua), one per 4-hour JST block, Sunday first.
+const TIMED_NAMES: Record<number, string> = {
+  4008: "Vanquish Aquans", 4009: "Vanquish Beasts", 4010: "Vanquish Plantoids", 4011: "Vanquish Lizards", 4012: "Vanquish Vermin",
+  4013: "Gain Experience", 4014: "Spoils (Seals)", 4015: "Vanquish Birds", 4016: "Vanquish Amorphs", 4017: "Vanquish Undead",
+  4018: "Vanquish Arcana", 4019: "Crack Treasure Caskets", 4020: "Physical Damage Kills", 4021: "Magic Damage Kills",
+};
+const TIMED_SCHEDULE = [
+  [4021, 4010, 4016, 4012, 4018, 4013], [4015, 4011, 4017, 4014, 4019, 4008], [4016, 4012, 4018, 4013, 4020, 4009],
+  [4017, 4014, 4019, 4008, 4021, 4010], [4018, 4013, 4020, 4009, 4015, 4011], [4019, 4008, 4021, 4010, 4016, 4012],
+  [4020, 4009, 4015, 4011, 4017, 4014],
+];
+export const isTimedRoe = (name: string) => Object.values(TIMED_NAMES).includes(name);
+const BLOCK = 4 * 3600_000;
+// The challenge in the 4h block holding `now` (ms), with that block's start/end.
+export function timedRoe(now: number): { name: string; start: number; end: number } {
+  const s = Math.floor((now + 9 * 3600_000) / BLOCK) * BLOCK - 9 * 3600_000; // block start, aligned to JST hours
+  const j = new Date(s + 9 * 3600_000); // its JST weekday and hour, read as UTC
+  return { name: TIMED_NAMES[TIMED_SCHEDULE[j.getUTCDay()][j.getUTCHours() / 4]], start: s, end: s + BLOCK };
+}
+// When `name` is next active at or after `now`.
+export function nextTimedRoe(name: string, now: number): number | null {
+  for (let t = now; t < now + 7 * 24 * 3600_000 + BLOCK; t += BLOCK) { const b = timedRoe(t); if (b.name === name) return Math.max(b.start, now); }
+  return null;
+}
+
 // Training progress from chat (the addon keeps these lines): training regimes ("You defeated a designated target.
 // (Progress: 2/4)"), Records of Eminence (a "Records of Eminence: <name>." line, then "Progress: 78/200.", or both on
 // one line once the addon strips the newline) and any other "(n/m)" count, keyed by its text without the numbers.

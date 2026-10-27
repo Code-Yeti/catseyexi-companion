@@ -137,3 +137,11 @@ assert.equal(paid.roe[0].reward, "1,000 limit points");
 assert.equal(rw(["You defeated a designated target. (Progress: 4/4)", "You have successfully completed the training regime.", "Arcadea gains 600 experience points.",
   "You have successfully completed the training regime.", "Arcadea gains 720 experience points."]).regime?.reward, "720 EXP");
 console.log("training ok");
+
+import { timedRoe, nextTimedRoe } from "../src/ffxi.ts";
+// 2026-10-27 is a Tuesday. 06:00Z = 15:00 JST Tuesday: block 12-16 = Gain Experience (4013), 15:00Z = Wed 00:00 JST.
+assert.deepEqual(timedRoe(at("2026-10-27T06:00:00Z")), { name: "Gain Experience", start: at("2026-10-27T03:00:00Z"), end: at("2026-10-27T07:00:00Z") });
+assert.equal(timedRoe(at("2026-10-27T15:00:00Z")).name, "Vanquish Undead"); // Wednesday 00-04 JST
+assert.equal(timedRoe(at("2026-10-25T14:59:00Z")).name, "Gain Experience"); // Sunday 20-24 JST
+assert.equal(nextTimedRoe("Gain Experience", at("2026-10-27T08:00:00Z")), at("2026-10-28T19:00:00Z")); // Thursday 04-08 JST
+console.log("timed roe ok");

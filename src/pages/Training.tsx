@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../ctx";
-import { getKv } from "../db";
-import { parseTraining, type Count } from "../ffxi";
+import { getKv, setKv } from "../db";
+import { dhm, isTimedRoe, nextTimedRoe, parseTraining, timedRoe, type Count } from "../ffxi";
 
 const ago = (t: number) => {
   const m = Math.floor((Date.now() / 1000 - t) / 60);
   return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / 1440)}d ago`;
 };
 
-function Bar({ c }: { c: Count }) {
+function Bar({ c, remove }: { c: Count; remove?: () => void }) {
   const done = c.done >= c.need;
   return (
     <tr className={done ? "muted" : undefined}>
@@ -18,6 +18,7 @@ function Bar({ c }: { c: Count }) {
       <td>{done ? <span className="good">Complete</span> : <span className="muted">{c.need - c.done} to go</span>}</td>
       <td title="Reward from the latest completion">{c.reward && <span className="good">+{c.reward}</span>}</td>
       <td className="muted">{ago(c.time)}</td>
+      <td>{remove && <button onClick={remove} title="Hide until it makes progress again">Remove</button>}</td>
     </tr>
   );
 }
@@ -28,8 +29,20 @@ export default function Training() {
   const { live } = useApp();
   const [lines, setLines] = useState<{ text: string; time: number; mob?: string }[]>([]);
   useEffect(() => { getKv("ventureLog").then((v) => v && setLines(JSON.parse(v))); }, [live?.ventureLog?.length, live?.ts]);
+  // Removed objectives (kv "trainingHidden", name -> time of the progress line they were removed at): hidden until a newer
+  // progress line, so a rotating objective comes back when it shows up again.
+  const [hidden, setHidden] = useState<Record<string, number>>({});
+  useEffect(() => { getKv("trainingHidden").then((v) => v && setHidden(JSON.parse(v))); }, []);
+  const hide = (c: Count) => { const h = { ...hidden, [c.name]: c.time }; setHidden(h); setKv("trainingHidden", JSON.stringify(h)); };
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
+  const timed = timedRoe(now), gains = nextTimedRoe("Gain Experience", now);
   const t = parseTraining(lines);
-  const table = (rows: Count[]) => <table style={{ marginTop: 6 }}><tbody>{rows.map((c) => <Bar key={c.name} c={c} />)}</tbody></table>;
+  // Limited-time challenges last one 4h block: progress from an earlier block is gone in game, so hide it here too.
+  t.roe = t.roe.filter((c) => !(c.time <= hidden[c.name]) && !(isTimedRoe(c.name) && c.time * 1000 < timed.start));
+  t.other = t.other.filter((c) => !(c.time <= hidden[c.name]));
+  const table = (rows: Count[], removable = false) =>
+    <table style={{ marginTop: 6 }}><tbody>{rows.map((c) => <Bar key={c.name} c={c} remove={removable ? () => hide(c) : undefined} />)}</tbody></table>;
   const empty = !t.regime && !t.roe.length && !t.other.length;
   return (
     <div>
@@ -43,8 +56,15 @@ export default function Training() {
           {table(t.regime.targets)}
         </div>
       )}
-      {t.roe.length > 0 && <div className="card"><b>Records of Eminence</b>{table(t.roe)}</div>}
-      {t.other.length > 0 && <div className="card"><b>Other counts</b>{table(t.other)}</div>}
+      <div className="card">
+        <b>Records of Eminence</b>
+        <div className="muted">
+          Limited-time challenge: <b>{timed.name}</b>, ends in {dhm(timed.end - now)}
+          {timed.name !== "Gain Experience" && gains && <> · next Gain Experience in {dhm(gains - now)}</>}
+        </div>
+        {t.roe.length > 0 && table(t.roe, true)}
+      </div>
+      {t.other.length > 0 && <div className="card"><b>Other counts</b>{table(t.other, true)}</div>}
     </div>
   );
 }
