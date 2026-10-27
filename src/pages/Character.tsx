@@ -4,6 +4,7 @@ import { parseCharId } from "../catseye";
 import { q } from "../db";
 import { JOBS, LEVEL_CAP, NATIONS, SLOTS, accountLabel, jobName, pretty } from "../ffxi";
 import ItemIcon from "../components/ItemIcon";
+import Portrait from "../components/Portrait";
 
 export default function CharacterPage() {
   const { char, charId, owned, fetchedAt, stale, loadChar, go } = useApp();
@@ -44,7 +45,9 @@ export default function CharacterPage() {
         <p className="muted">Enter your CatseyeXI character id to pull jobs, gear and owned items from catseyexi.com.</p>
       ) : (
         <>
-          <div className="card">
+          <div className="card row" style={{ alignItems: "center" }}>
+            <Portrait race={char.race} job={char.mjob} size={150} />
+            <div>
             <h1 style={{ margin: 0 }}>{char.charname} <span className={char.isOnline ? "tag own" : "tag"}>{char.isOnline ? "online" : "offline"}</span></h1>
             <div className="muted">
               {jobName(char.mjob)}{char.mlvl}/{jobName(char.sjob)}{char.slvl} · {NATIONS[char.nation]} (rank{" "}
@@ -52,6 +55,7 @@ export default function CharacterPage() {
               Last zone: {zone ?? char.pos_zone}
             </div>
             {char.accountType === 1 && <div className="cxnote">Crystal Warrior: no Auction House, and some content is level-capped. See <a href="https://www.bg-wiki.com/ffxi/CatsEyeXI_Content/Crystal_Warrior" target="_blank">CW rules</a>.</div>}
+            </div>
           </div>
 
           <h2>Jobs</h2>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useApp } from "../ctx";
 import { parseCharId } from "../catseye";
 import { jobName } from "../ffxi";
+import Portrait from "../components/Portrait";
 
 export default function Friends() {
   const { friends, addFriend, removeFriend, refreshFriends, zoneName, toasts, setToasts, toast } = useApp();
@@ -36,11 +37,12 @@ export default function Friends() {
       </div>
       {err && <div className="error">{err}</div>}
       <table>
-        <thead><tr><th></th><th>Name</th><th>Job</th><th>Zone</th><th></th></tr></thead>
+        <thead><tr><th></th><th></th><th>Name</th><th>Job</th><th>Zone</th><th></th></tr></thead>
         <tbody>
           {sorted.map((f) => (
             <tr key={f.id}>
               <td style={{ width: 24 }}><span className={f.char?.isOnline ? "dot-on" : "dot-off"} title={f.char?.isOnline ? "Online" : "Offline"} /></td>
+              <td style={{ width: 48, padding: 0 }}>{f.char && <Portrait race={f.char.race} job={f.char.mjob} size={48} />}</td>
               <td><a href={`https://catseyexi.com/char/${f.id}`} target="_blank">{f.char?.charname ?? `#${f.id}`}</a>
                 {f.err && <span className="warn" title={f.err}> (couldn't refresh)</span>}</td>
               <td className="muted">{f.char ? `${jobName(f.char.mjob)}${f.char.mlvl}/${jobName(f.char.sjob)}${f.char.slvl}` : ""}</td>
@@ -48,7 +50,7 @@ export default function Friends() {
               <td><button onClick={() => removeFriend(f.id)}>Remove</button></td>
             </tr>
           ))}
-          {!friends.length && <tr><td colSpan={5} className="muted">No friends added yet. Paste their CatseyeXI profile URL above.</td></tr>}
+          {!friends.length && <tr><td colSpan={6} className="muted">No friends added yet. Paste their CatseyeXI profile URL above.</td></tr>}
         </tbody>
       </table>
     </div>

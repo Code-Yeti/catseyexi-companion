@@ -27,7 +27,7 @@ export async function cx<T>(path: string, refresh = false): Promise<Cached<T>> {
 
 export type Character = {
   charid: number; charname: string; nation: number; pos_zone: number; pos_x: number; pos_y: number; pos_z: number;
-  mjob: string; sjob: string; mlvl: string; slvl: string; accountType: number;
+  mjob: string; sjob: string; mlvl: string; slvl: string; accountType: number; race: string;
   rank_sandoria: number; rank_bastok: number; rank_windurst: number;
   jobs: Record<string, number>; exp: Record<string, number>; crafts: Record<string, number>;
   equipment: Record<string, number>; relics: string[]; mythics: string[]; isOnline: boolean;
