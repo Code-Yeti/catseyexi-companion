@@ -216,15 +216,19 @@ export function parseWsPoints(text: string): { slot: number; points: number } | 
 // Training progress from chat (the addon keeps these lines): training regimes ("You defeated a designated target.
 // (Progress: 2/4)"), Records of Eminence (a "Records of Eminence: <name>." line, then "Progress: 78/200.", or both on
 // one line once the addon strips the newline) and any other "(n/m)" count, keyed by its text without the numbers.
-export type Count = { name: string; done: number; need: number; time: number };
+export type Count = { name: string; done: number; need: number; time: number; reward?: string };
 // A regime counts each target type separately and its line doesn't say which, so the addon attaches the mob from the
 // "defeats" line before it (mob). Each target seen keeps its row; when the regime begins anew they drop to 0.
-export type Training = { regime?: { targets: Count[]; complete: boolean }; roe: Count[]; other: Count[] };
+// reward: the EXP (or limit points) from the latest completion, from the "gains N experience points." line after it.
+export type Training = { regime?: { targets: Count[]; complete: boolean; reward?: string }; roe: Count[]; other: Count[] };
 export function parseTraining(lines: { text: string; time: number; mob?: string }[]): Training {
-  const roe = new Map<string, Count>(), other = new Map<string, Count>();
-  let regime: { targets: Map<string, Count>; complete: boolean } | undefined, pending: string | undefined;
+  const roe = new Map<string, Count>(), other = new Map<string, Count>(), rewards = new Map<string, string>();
+  let regime: { targets: Map<string, Count>; complete: boolean } | undefined, pending: string | undefined, rewardFor: string | undefined;
   for (const { text, time, mob } of lines) {
-    let m = text.match(/designated target.*\(Progress: (\d+)\/(\d+)\)/i);
+    let m = text.match(/gains? ([\d,]+) (experience|limit) points/i);
+    if (m) { if (rewardFor) rewards.set(rewardFor, `${m[1]} ${m[2] === "experience" ? "EXP" : "limit points"}`); rewardFor = undefined; continue; }
+    rewardFor = undefined;
+    m = text.match(/designated target.*\(Progress: (\d+)\/(\d+)\)/i);
     if (m) {
       regime ??= { targets: new Map(), complete: false };
       regime.complete = false;
@@ -233,13 +237,13 @@ export function parseTraining(lines: { text: string; time: number; mob?: string 
       regime.targets.set(name, { name, done: +m[1], need: +m[2], time });
       continue;
     }
-    if (/completed (?:the|your) training regime/i.test(text)) { if (regime) regime.complete = true; continue; }
+    if (/completed (?:the|your) training regime/i.test(text)) { if (regime) regime.complete = true; rewardFor = "regime"; continue; }
     // "Your current training regime will begin anew!": same targets, counts back to 0.
     if (/regime will begin anew/i.test(text)) { regime?.targets.forEach((c) => { c.done = 0; c.time = time; }); continue; }
     // A different regime: its targets are new. (Wording guessed: "registered", "canceled".)
-    if (/regime (?:registered|canceled|cancelled)/i.test(text)) { regime = undefined; continue; }
+    if (/regime (?:registered|canceled|cancelled)/i.test(text)) { regime = undefined; rewards.delete("regime"); continue; }
     m = text.match(/completed the following Records of Eminence objective: (.+?)\.?$/);
-    if (m) { const need = roe.get(m[1])?.need ?? 1; roe.set(m[1], { name: m[1], done: need, need, time }); continue; }
+    if (m) { const need = roe.get(m[1])?.need ?? 1; roe.set(m[1], { name: m[1], done: need, need, time }); rewardFor = `roe:${m[1]}`; continue; }
     m = text.match(/Records of Eminence: (.+?)\.?\s*(?:Progress: (\d+)\/(\d+)\.?)?$/);
     if (m) {
       pending = m[1];
@@ -255,5 +259,7 @@ export function parseTraining(lines: { text: string; time: number; mob?: string 
     }
   }
   const newest = (a: Count, b: Count) => b.time - a.time;
-  return { regime: regime && { targets: [...regime.targets.values()], complete: regime.complete }, roe: [...roe.values()].sort(newest), other: [...other.values()].sort(newest) };
+  roe.forEach((c) => (c.reward = rewards.get(`roe:${c.name}`)));
+  return { regime: regime && { targets: [...regime.targets.values()], complete: regime.complete, reward: rewards.get("regime") },
+    roe: [...roe.values()].sort(newest), other: [...other.values()].sort(newest) };
 }

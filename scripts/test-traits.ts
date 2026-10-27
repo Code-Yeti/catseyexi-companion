@@ -112,7 +112,7 @@ const tr = parseTraining(tl(["You defeated a designated target. (Progress: 2/4)"
   "Records of Eminence: Conflict: Boyahda Tree.", "Progress: 9/10.",
   "Records of Eminence: Physical Damage Kills.Progress: 9/20.", "Limit chain #3!",
   "Records of Eminence: Conflict: Boyahda Tree.", "Progress: 10/10."]));
-assert.deepEqual(tr.regime, { targets: [{ name: "Designated target", done: 2, need: 4, time: 100 }], complete: false });
+assert.deepEqual(tr.regime, { targets: [{ name: "Designated target", done: 2, need: 4, time: 100 }], complete: false, reward: undefined });
 assert.deepEqual(tr.roe.map((r) => `${r.name} ${r.done}/${r.need}`), ["Conflict: Boyahda Tree 10/10", "Physical Damage Kills 9/20", "Vanquish Multiple Enemies I 78/200"]);
 assert.equal(tr.other.length, 0);
 assert.equal(parseTraining(tl(["You defeated a designated target. (Progress: 4/4)", "You have completed the training regime."])).regime?.complete, true);
@@ -127,4 +127,13 @@ const again = parseTraining([...done, { ...kills[0], time: 5 }]).regime!;
 assert.deepEqual([again.targets.map((c) => `${c.name} ${c.done}`), again.complete], [["Steelshell 1", "Boyahda Sapling 0"], false]);
 assert.deepEqual(parseTraining(tl(["Records of Eminence: Conflict: Boyahda Tree.", "Progress: 9/10.",
   "You have completed the following Records of Eminence objective: Conflict: Boyahda Tree."])).roe.map((r) => `${r.done}/${r.need}`), ["10/10"]);
+// Rewards: the EXP line right after a completion, replaced by the next completion's.
+const rw = (texts: string[]) => parseTraining(tl(texts));
+const paid = rw(["You defeated a designated target. (Progress: 4/4)", "You have successfully completed the training regime.",
+  "Arcadea gains 600 experience points.", "Arcadea gains 150 experience points.",
+  "You have completed the following Records of Eminence objective: Conflict: Boyahda Tree.", "Arcadea gains 1,000 limit points."]);
+assert.equal(paid.regime?.reward, "600 EXP");
+assert.equal(paid.roe[0].reward, "1,000 limit points");
+assert.equal(rw(["You defeated a designated target. (Progress: 4/4)", "You have successfully completed the training regime.", "Arcadea gains 600 experience points.",
+  "You have successfully completed the training regime.", "Arcadea gains 720 experience points."]).regime?.reward, "720 EXP");
 console.log("training ok");

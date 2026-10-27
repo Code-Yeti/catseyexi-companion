@@ -16,6 +16,7 @@ function Bar({ c }: { c: Count }) {
       <td><div className="trait-bar" style={{ width: 200 }}><div style={{ width: `${Math.min(100, (c.done / c.need) * 100)}%`, background: done ? "var(--good)" : "var(--accent)" }} /></div></td>
       <td>{c.done}/{c.need}</td>
       <td>{done ? <span className="good">Complete</span> : <span className="muted">{c.need - c.done} to go</span>}</td>
+      <td title="Reward from the latest completion">{c.reward && <span className="good">+{c.reward}</span>}</td>
       <td className="muted">{ago(c.time)}</td>
     </tr>
   );
@@ -38,6 +39,7 @@ export default function Training() {
       {t.regime && (
         <div className="card">
           <b>Training regime</b>{t.regime.complete && <span className="tag own">complete</span>}
+          {t.regime.reward && <span className="muted" title="Reward from the latest completion"> · reward +{t.regime.reward}</span>}
           {table(t.regime.targets)}
         </div>
       )}
