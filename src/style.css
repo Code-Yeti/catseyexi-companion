@@ -9,9 +9,11 @@ body { margin: 0; background: var(--bg); }
 nav { width: 170px; background: var(--panel); border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 4px; }
 /* Your portrait behind the menu, faded out through the brush-circle mask (white = shown; made from images/character mask.jpg). */
 nav { position: relative; overflow: hidden; }
-nav > * { position: relative; }
-/* Portrait and mask the same size, 2x the 170px menu, centred on it; the menu column crops the sides. */
-nav > .nav-art { position: absolute; left: -85px; top: 0; opacity: 0.9; pointer-events: none; }
+nav > * { position: relative; z-index: 2; }
+/* Portrait and mask the same size, 2x the 170px menu, shifted right (left: -85px would centre it); the column crops the sides. */
+nav > .nav-art { position: absolute; left: -40px; top: 0; z-index: 0; opacity: 0.9; pointer-events: none; }
+/* Fade the art out from the left edge to the middle of the menu. */
+nav::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(90deg, var(--panel), transparent 50%); }
 nav button, nav .brand { text-shadow: 0 1px 2px #000, 0 0 6px #000; }
 /* A pill behind each menu item, fading out towards its right end, so the items stand out over the art. */
 nav button { background: linear-gradient(90deg, color-mix(in srgb, var(--panel) 75%, transparent), transparent); }
