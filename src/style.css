@@ -10,8 +10,10 @@ nav { width: 170px; background: var(--panel); border-right: 1px solid var(--line
 /* Your portrait behind the menu, faded out through the brush-circle mask (white = shown; made from images/character mask.jpg). */
 nav { position: relative; overflow: hidden; }
 nav > * { position: relative; }
-nav > .nav-art { position: absolute; left: -85px; top: 40px; /* 2x the 170px menu, centred on it */ opacity: 0.45; pointer-events: none;
+/* The mask fills the menu width; the portrait inside is zoomed 2x and centred (move it with the inner left/top). */
+nav > .nav-art { position: absolute; left: 0; top: 60px; width: 170px; height: 170px; overflow: hidden; opacity: 0.45; pointer-events: none;
   mask: url("./assets/portraits/mask.png") center / contain no-repeat; }
+nav > .nav-art > div { position: absolute; left: -85px; top: -30px; } /* face roughly in the middle of the circle */
 nav .brand { font-weight: 700; font-size: 17px; padding: 4px 8px 14px; color: var(--cx); }
 nav .brand small { color: var(--muted); font-weight: 400; font-size: 12px; }
 nav button { text-align: left; background: none; border: 0; color: var(--text); padding: 8px 10px; border-radius: 6px; }
