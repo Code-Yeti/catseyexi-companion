@@ -13,11 +13,11 @@ nav > * { position: relative; }
 /* Portrait and mask the same size, 2x the 170px menu, centred on it; the menu column crops the sides. */
 nav > .nav-art { position: absolute; left: -85px; top: 0; opacity: 0.9; pointer-events: none; }
 nav button, nav .brand { text-shadow: 0 1px 2px #000, 0 0 6px #000; }
-/* A pill behind each menu item, fading out by a third of the way across, so the items stand out over the art. */
-nav button { background: linear-gradient(90deg, color-mix(in srgb, var(--panel) 75%, transparent), transparent 33%); }
+/* A pill behind each menu item, fading out towards its right end, so the items stand out over the art. */
+nav button { background: linear-gradient(90deg, color-mix(in srgb, var(--panel) 75%, transparent), transparent); }
 nav .brand { font-weight: 700; font-size: 17px; padding: 4px 8px 14px; color: var(--cx); }
 nav .brand small { color: var(--muted); font-weight: 400; font-size: 12px; }
-nav button { text-align: left; border: 0; color: var(--text); padding: 8px 10px; border-radius: 6px; }
+nav button { text-align: left; border: 0; color: var(--text); padding: 4px 12px; margin: 4px 0; border-radius: 999px; align-self: flex-start; } /* pill hugging the label */
 nav button.active { background: color-mix(in srgb, var(--line) 60%, transparent); color: var(--accent); }
 nav .back { margin-top: 12px; color: var(--muted); }
 nav .who { margin-top: auto; padding: 8px; color: var(--muted); font-size: 12px; }
