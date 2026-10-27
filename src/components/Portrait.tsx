@@ -10,11 +10,11 @@ const SHEETS: Record<string, [string, number]> = {
   7: [mithra, 480 / 448], 8: [galka, 460.8 / 464],
 }; // ponytail: no Tarutaru sheet yet (race 5/6), they get no portrait
 
-export default function Portrait({ race, job, size }: { race: string | number; job: string | number; size: number }) {
+export default function Portrait({ race, job, size, className }: { race: string | number; job: string | number; size: number; className?: string }) {
   const sheet = SHEETS[race], i = Number(job) - 1;
   if (!sheet || !(i >= 0 && i < 20)) return null;
   return (
-    <div style={{ width: size, aspectRatio: sheet[1], flex: "none", backgroundImage: `url(${sheet[0]})`, backgroundSize: "500% 400%",
+    <div className={className} style={{ width: size, aspectRatio: sheet[1], flex: "none", backgroundImage: `url(${sheet[0]})`, backgroundSize: "500% 400%",
       backgroundPosition: `${(i % 5) * 25}% ${Math.floor(i / 5) * (100 / 3)}%` }} />
   );
 }

@@ -24,6 +24,7 @@ import Settings from "./pages/Settings";
 import LiveMap from "./pages/LiveMap";
 import Storage from "./pages/Storage";
 import Skillchains from "./pages/Skillchains";
+import Portrait from "./components/Portrait";
 
 const NAV: [Page["name"], string][] = [
   ["character", "Character"], ["map", "Map"], ["search", "Search"], ["mobs", "Mobs"], ["blu", "Blue Magic"], ["skillchains", "Skillchains"],
@@ -326,6 +327,7 @@ export default function App() {
       refreshFriends: () => refreshFriends(true), zoneName: (id) => zones.get(id), toasts, setToasts, toast }}>
       <div className="shell">
         <nav>
+          {char && <Portrait race={char.race} job={char.mjob} size={170} className="nav-art" />}
           <div className="brand">CatseyeXI<br /><small>Companion</small></div>
           {NAV.map(([n, label]) => (
             <button key={n} className={page.name === n ? "active" : ""} onClick={() => go({ name: n } as Page)}>{label}</button>
