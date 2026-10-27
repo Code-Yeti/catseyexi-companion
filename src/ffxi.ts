@@ -218,7 +218,7 @@ export function parseWsPoints(text: string): { slot: number; points: number } | 
 // one line once the addon strips the newline) and any other "(n/m)" count, keyed by its text without the numbers.
 export type Count = { name: string; done: number; need: number; time: number };
 // A regime counts each target type separately and its line doesn't say which, so the addon attaches the mob from the
-// "defeats" line before it (mob). A completed regime starts a fresh set of rows on its next kill.
+// "defeats" line before it (mob). Each target seen keeps its row; when the regime begins anew they drop to 0.
 export type Training = { regime?: { targets: Count[]; complete: boolean }; roe: Count[]; other: Count[] };
 export function parseTraining(lines: { text: string; time: number; mob?: string }[]): Training {
   const roe = new Map<string, Count>(), other = new Map<string, Count>();
@@ -226,13 +226,20 @@ export function parseTraining(lines: { text: string; time: number; mob?: string 
   for (const { text, time, mob } of lines) {
     let m = text.match(/designated target.*\(Progress: (\d+)\/(\d+)\)/i);
     if (m) {
-      if (!regime || regime.complete) regime = { targets: new Map(), complete: false };
+      regime ??= { targets: new Map(), complete: false };
+      regime.complete = false;
       const name = mob ?? "Designated target";
       if (mob) regime.targets.delete("Designated target"); // lines from before the addon named the mob
       regime.targets.set(name, { name, done: +m[1], need: +m[2], time });
       continue;
     }
     if (/completed (?:the|your) training regime/i.test(text)) { if (regime) regime.complete = true; continue; }
+    // "Your current training regime will begin anew!": same targets, counts back to 0.
+    if (/regime will begin anew/i.test(text)) { regime?.targets.forEach((c) => { c.done = 0; c.time = time; }); continue; }
+    // A different regime: its targets are new. (Wording guessed: "registered", "canceled".)
+    if (/regime (?:registered|canceled|cancelled)/i.test(text)) { regime = undefined; continue; }
+    m = text.match(/completed the following Records of Eminence objective: (.+?)\.?$/);
+    if (m) { const need = roe.get(m[1])?.need ?? 1; roe.set(m[1], { name: m[1], done: need, need, time }); continue; }
     m = text.match(/Records of Eminence: (.+?)\.?\s*(?:Progress: (\d+)\/(\d+)\.?)?$/);
     if (m) {
       pending = m[1];
