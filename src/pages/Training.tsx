@@ -58,9 +58,9 @@ export default function Training() {
       )}
       <div className="card">
         <b>Records of Eminence</b>
-        <div className="muted">
-          Limited-time challenge: <b>{timed.name}</b>, ends in {dhm(timed.end - now)}
-          {timed.name !== "Gain Experience" && gains && <> · next Gain Experience in {dhm(gains - now)}</>}
+        <div className="muted" style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+          <span>Limited-time challenge: <b>{timed.name}</b>, ends in {dhm(timed.end - now)} · up next: <b>{timedRoe(timed.end).name}</b></span>
+          {timed.name !== "Gain Experience" && gains && <span>Next Gain Experience in <b>{dhm(gains - now)}</b></span>}
         </div>
         {t.roe.length > 0 && table(t.roe, true)}
       </div>
