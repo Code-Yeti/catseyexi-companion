@@ -327,7 +327,7 @@ export default function App() {
       refreshFriends: () => refreshFriends(true), zoneName: (id) => zones.get(id), toasts, setToasts, toast }}>
       <div className="shell">
         <nav>
-          {char && <Portrait race={char.race} job={char.mjob} size={170} className="nav-art" />}
+          {char && <Portrait race={char.race} job={char.mjob} size={340} className="nav-art" />}
           <div className="brand">CatseyeXI<br /><small>Companion</small></div>
           {NAV.map(([n, label]) => (
             <button key={n} className={page.name === n ? "active" : ""} onClick={() => go({ name: n } as Page)}>{label}</button>

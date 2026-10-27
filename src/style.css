@@ -8,9 +8,9 @@ body { margin: 0; background: var(--bg); }
 .shell { display: flex; height: 100vh; }
 nav { width: 170px; background: var(--panel); border-right: 1px solid var(--line); padding: 12px 8px; display: flex; flex-direction: column; gap: 4px; }
 /* Your portrait behind the menu, faded out through the brush-circle mask (white = shown; made from images/character mask.jpg). */
-nav { position: relative; }
+nav { position: relative; overflow: hidden; }
 nav > * { position: relative; }
-nav > .nav-art { position: absolute; left: 0; top: 90px; opacity: 0.45; pointer-events: none;
+nav > .nav-art { position: absolute; left: -85px; top: 40px; /* 2x the 170px menu, centred on it */ opacity: 0.45; pointer-events: none;
   mask: url("./assets/portraits/mask.png") center / contain no-repeat; }
 nav .brand { font-weight: 700; font-size: 17px; padding: 4px 8px 14px; color: var(--cx); }
 nav .brand small { color: var(--muted); font-weight: 400; font-size: 12px; }
