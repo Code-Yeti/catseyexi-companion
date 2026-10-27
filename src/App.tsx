@@ -282,7 +282,7 @@ export default function App() {
     if (k === ventureKey.current) return;
     ventureKey.current = k;
     (async () => {
-      const old: { text: string; time: number; n?: number }[] = JSON.parse((await getKv("ventureLog")) ?? "[]");
+      const old: { text: string; time: number; n?: number; mob?: string }[] = JSON.parse((await getKv("ventureLog")) ?? "[]");
       const id = (l: { text: string; time: number; n?: number }) => `${l.time}|${l.n ?? ""}|${l.text}`;
       const seen = new Set(old.map(id));
       await setKv("ventureLog", JSON.stringify([...old, ...lines.filter((l) => !seen.has(id(l)))].slice(-500)));

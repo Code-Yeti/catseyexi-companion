@@ -217,13 +217,21 @@ export function parseWsPoints(text: string): { slot: number; points: number } | 
 // (Progress: 2/4)"), Records of Eminence (a "Records of Eminence: <name>." line, then "Progress: 78/200.", or both on
 // one line once the addon strips the newline) and any other "(n/m)" count, keyed by its text without the numbers.
 export type Count = { name: string; done: number; need: number; time: number };
-export type Training = { regime?: Count & { complete: boolean }; roe: Count[]; other: Count[] };
-export function parseTraining(lines: { text: string; time: number }[]): Training {
+// A regime counts each target type separately and its line doesn't say which, so the addon attaches the mob from the
+// "defeats" line before it (mob). A completed regime starts a fresh set of rows on its next kill.
+export type Training = { regime?: { targets: Count[]; complete: boolean }; roe: Count[]; other: Count[] };
+export function parseTraining(lines: { text: string; time: number; mob?: string }[]): Training {
   const roe = new Map<string, Count>(), other = new Map<string, Count>();
-  let regime: Training["regime"], pending: string | undefined;
-  for (const { text, time } of lines) {
+  let regime: { targets: Map<string, Count>; complete: boolean } | undefined, pending: string | undefined;
+  for (const { text, time, mob } of lines) {
     let m = text.match(/designated target.*\(Progress: (\d+)\/(\d+)\)/i);
-    if (m) { regime = { name: "Training regime", done: +m[1], need: +m[2], time, complete: +m[1] >= +m[2] }; continue; }
+    if (m) {
+      if (!regime || regime.complete) regime = { targets: new Map(), complete: false };
+      const name = mob ?? "Designated target";
+      if (mob) regime.targets.delete("Designated target"); // lines from before the addon named the mob
+      regime.targets.set(name, { name, done: +m[1], need: +m[2], time });
+      continue;
+    }
     if (/completed (?:the|your) training regime/i.test(text)) { if (regime) regime.complete = true; continue; }
     m = text.match(/Records of Eminence: (.+?)\.?\s*(?:Progress: (\d+)\/(\d+)\.?)?$/);
     if (m) {
@@ -240,5 +248,5 @@ export function parseTraining(lines: { text: string; time: number }[]): Training
     }
   }
   const newest = (a: Count, b: Count) => b.time - a.time;
-  return { regime, roe: [...roe.values()].sort(newest), other: [...other.values()].sort(newest) };
+  return { regime: regime && { targets: [...regime.targets.values()], complete: regime.complete }, roe: [...roe.values()].sort(newest), other: [...other.values()].sort(newest) };
 }

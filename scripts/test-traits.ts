@@ -112,8 +112,14 @@ const tr = parseTraining(tl(["You defeated a designated target. (Progress: 2/4)"
   "Records of Eminence: Conflict: Boyahda Tree.", "Progress: 9/10.",
   "Records of Eminence: Physical Damage Kills.Progress: 9/20.", "Limit chain #3!",
   "Records of Eminence: Conflict: Boyahda Tree.", "Progress: 10/10."]));
-assert.deepEqual(tr.regime, { name: "Training regime", done: 2, need: 4, time: 100, complete: false });
+assert.deepEqual(tr.regime, { targets: [{ name: "Designated target", done: 2, need: 4, time: 100 }], complete: false });
 assert.deepEqual(tr.roe.map((r) => `${r.name} ${r.done}/${r.need}`), ["Conflict: Boyahda Tree 10/10", "Physical Damage Kills 9/20", "Vanquish Multiple Enemies I 78/200"]);
 assert.equal(tr.other.length, 0);
 assert.equal(parseTraining(tl(["You defeated a designated target. (Progress: 4/4)", "You have completed the training regime."])).regime?.complete, true);
+const kills = [{ text: "You defeated a designated target. (Progress: 1/4)", time: 1, mob: "Steelshell" },
+  { text: "You defeated a designated target. (Progress: 1/6)", time: 2, mob: "Boyahda Sapling" },
+  { text: "You defeated a designated target. (Progress: 2/4)", time: 3, mob: "Steelshell" }];
+assert.deepEqual(parseTraining(kills).regime?.targets.map((c) => `${c.name} ${c.done}/${c.need}`), ["Steelshell 2/4", "Boyahda Sapling 1/6"]);
+const again = parseTraining([...kills, { text: "You have completed the training regime.", time: 4 }, { ...kills[0], time: 5 }]).regime!;
+assert.deepEqual([again.targets.length, again.complete], [1, false]); // the next cycle starts fresh
 console.log("training ok");

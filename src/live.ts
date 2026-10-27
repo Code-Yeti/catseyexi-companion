@@ -17,7 +17,7 @@ export type Live = {
   exp?: { cur: number; need: number; limit: number; merits: number; meritsMax: number; limitMode: boolean };
   weapons?: { slot: number; id: number; wsPoints: number }[]; // equipped main(0)/sub(1)/ranged(2)
   wsUsed?: { ws: number; target: number; sc: number; time: number }[]; // your weapon skills (sc = skillchain message)
-  ventureLog?: { text: string; mode?: number; time: number; n?: number }[]; // tracked chat: Ventures, replies to your ! commands, training/RoE progress; last 100
+  ventureLog?: { text: string; mode?: number; time: number; n?: number; mob?: string }[]; // mob: regime kills // tracked chat: Ventures, replies to your ! commands, training/RoE progress; last 100
   engaged?: boolean;                      // player has weapons drawn
   moves?: { actor: number; skill: number; ready: boolean; time: number }[]; // monster TP moves seen (mob_skill_id)
   logs?: Record<string, string>;            // 0x056 port -> 32 bytes hex

@@ -25,7 +25,7 @@ function Bar({ c }: { c: Count }) {
 // "(n/m)" counts), captured by the addon and kept in user.db by App (kv "ventureLog"), so it shows with the game closed.
 export default function Training() {
   const { live } = useApp();
-  const [lines, setLines] = useState<{ text: string; time: number }[]>([]);
+  const [lines, setLines] = useState<{ text: string; time: number; mob?: string }[]>([]);
   useEffect(() => { getKv("ventureLog").then((v) => v && setLines(JSON.parse(v))); }, [live?.ventureLog?.length, live?.ts]);
   const t = parseTraining(lines);
   const table = (rows: Count[]) => <table style={{ marginTop: 6 }}><tbody>{rows.map((c) => <Bar key={c.name} c={c} />)}</tbody></table>;
@@ -38,7 +38,7 @@ export default function Training() {
       {t.regime && (
         <div className="card">
           <b>Training regime</b>{t.regime.complete && <span className="tag own">complete</span>}
-          {table([t.regime])}
+          {table(t.regime.targets)}
         </div>
       )}
       {t.roe.length > 0 && <div className="card"><b>Records of Eminence</b>{table(t.roe)}</div>}
