@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { q, getKv, setKv } from "../db";
-import { activeTraits, pretty, solveTrait } from "../ffxi";
+import { activeTraits, pretty, solveTrait, unlockLevel } from "../ffxi";
 import { useApp } from "../ctx";
 import { resolveSet, type SetSpell } from "./BluSet";
 
@@ -30,6 +30,7 @@ export default function BluTraits({ blu, learned, onSpell }: { blu: number; lear
   const status = (s: Sp) => learned.has(s.name) ? "learned" : s.level <= blu ? "learnable" : "locked";
   const cost = (s: Sp) => s.set_points + (status(s) === "learned" ? 0 : status(s) === "learnable" ? 0.01 : 100);
 
+  const lvl = (t: Tier) => unlockLevel(spells.filter((s) => s.trait_category === t.category), t.points);
   const categories = useMemo(() => {
     const m = new Map<number, Tier[]>();
     for (const t of tiers) m.set(t.category, [...(m.get(t.category) ?? []), t]);
@@ -75,7 +76,7 @@ export default function BluTraits({ blu, learned, onSpell }: { blu: number; lear
             <select value={picks[ts[0].category] ?? ""} style={{ width: "100%", marginTop: 4 }}
               onChange={(e) => { const p = { ...picks }; e.target.value === "" ? delete p[ts[0].category] : (p[ts[0].category] = +e.target.value); save(p); }}>
               <option value="">—</option>
-              {ts.map((t) => <option key={t.tier} value={t.tier}>Tier {t.tier} · {t.points} pts · {t.effect}</option>)}
+              {ts.map((t) => <option key={t.tier} value={t.tier}>Tier {t.tier} · BLU {lvl(t) ?? "—"} · {t.points} pts · {t.effect}</option>)}
             </select>
           </label>
         ))}
@@ -96,7 +97,7 @@ export default function BluTraits({ blu, learned, onSpell }: { blu: number; lear
         const got = (chosen ?? []).reduce((a, s) => a + s.trait_weight, 0);
         return (
           <div key={tier.category} className="card">
-            <h2 style={{ marginTop: 0 }}>{pretty(tier.name)} {tier.tier} <span className="muted">· {tier.effect} · needs {tier.points} trait points</span></h2>
+            <h2 style={{ marginTop: 0 }}>{pretty(tier.name)} {tier.tier} <span className="muted">· {tier.effect} · needs {tier.points} trait points{lvl(tier) != null && <> · unlocks at BLU {lvl(tier)}</>}</span></h2>
             {!chosen ? <div className="bad">Can't be reached with spells available on CatseyeXI ({cands.reduce((a, s) => a + s.trait_weight, 0)} points possible).</div> : (
               <div className="muted">Use {chosen.length} spell{chosen.length > 1 ? "s" : ""} for {got} trait points and {chosen.reduce((a, s) => a + s.set_points, 0)} set points.</div>
             )}

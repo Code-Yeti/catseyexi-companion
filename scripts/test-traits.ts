@@ -1,6 +1,6 @@
 // node scripts/test-traits.ts — checks the BLU trait solver.
 import assert from "node:assert/strict";
-import { solveTrait } from "../src/ffxi.ts";
+import { solveTrait, unlockLevel } from "../src/ffxi.ts";
 
 const sp = (name: string, trait_weight: number, set_points: number) => ({ name, trait_weight, set_points });
 const cost = (s: { set_points: number }) => s.set_points;
@@ -15,6 +15,8 @@ assert.equal(r.reduce((a, s) => a + s.set_points, 0), 9); // Actinic Burst (4/4)
 assert.deepEqual(names(r), ["Actinic Burst", "Plasma Charge"]);
 
 assert.equal(solveTrait([sp("A", 1, 1)], 2, cost), null); // unreachable
+assert.equal(unlockLevel([{ level: 40, trait_weight: 4 }, { level: 10, trait_weight: 4 }, { level: 60, trait_weight: 4 }], 8), 40);
+assert.equal(unlockLevel([{ level: 10, trait_weight: 4 }], 8), null);
 assert.deepEqual(names(solveTrait([sp("A", 1, 5), sp("B", 1, 1)], 1, cost)), ["B"]);
 console.log("trait solver ok");
 

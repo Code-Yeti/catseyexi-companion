@@ -202,6 +202,7 @@ async function main() {
     CREATE INDEX ix_mi_zone ON mob_index(zoneid);
     CREATE INDEX ix_mi_name ON mob_index(mobname, zoneid);`);
   seedSkillchainSkills(db);
+  await seedTrusts(db);
   await seedCxLevels(db);
   selfCheck(db);
   db.close();
@@ -624,6 +625,31 @@ function diffReport(db: DatabaseSync) {
   writeFileSync(join(root, "data", "diff-report.md"), lines.join("\n") + "\n");
 }
 
+// Trusts from CatsEyeXI_Systems/Trusts: one table per role section, rows of Name <sup>(jobs)</sup> | availability icons |
+// obtainment (ACE<hr>CW parts) | customized | notes. spellid is the LSB/client trust spell (896+), matched by name.
+async function seedTrusts(db: DatabaseSync) {
+  db.exec("CREATE TABLE trusts (name TEXT PRIMARY KEY, jobs TEXT, role TEXT, ace INT, cw INT, obtain TEXT, customized INT, notes TEXT, spellid INT)");
+  const ids = new Map((db.prepare("SELECT spellid, name FROM spell_list WHERE spellid >= 896").all() as any[]).map((s) => [s.name.toLowerCase().replace(/[^a-z0-9]/g, ""), s.spellid]));
+  const text = (s: string) => plain(s.replace(/\[\[File:CatsEyeXI ACE\.png[^\]]*\]\]/g, "ACE: ").replace(/\[\[File:CatsEyeXI CW\.png[^\]]*\]\]/g, "CW: ")
+    .replace(/<hr\s*\/?>|<\/?br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")).replace(/ *\n */g, "\n").replace(/  +/g, " ");
+  const ins = db.prepare("INSERT OR REPLACE INTO trusts VALUES (?,?,?,?,?,?,?,?,?)");
+  const missing: string[] = [];
+  for (const sec of (await wikiText("CatsEyeXI_Systems/Trusts")).split(/\n==(?!=)/).slice(1)) {
+    const role = sec.slice(0, sec.indexOf("==")).trim();
+    for (const table of wikiTables(sec))
+      for (const [nameCell, avail = "", obtain = "", custom = "", notes = ""] of table) {
+        const m = nameCell.match(/\[\[[^\]|]+\|([^\]]+)\]\]\s*<sup>\(([^)]*)\)<\/sup>/);
+        if (!m) continue;
+        // Unity Concord trusts are short in LSB: naja_uc, jakoh_uc, i_shield_uc.
+        const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const spellid = ids.get(key(m[1])) ?? ids.get(key(m[1].replace(/^(\w)\w* Shield/, "$1Shield").replace(/^(\w+)[^(]*\(UC\)/, "$1uc"))) ?? null;
+        if (spellid == null) missing.push(m[1]);
+        ins.run(m[1].trim(), m[2], role, +avail.includes("ACE.png"), +avail.includes("CW.png"), text(obtain), +/yes/i.test(custom), text(notes) || null, spellid);
+      }
+  }
+  if (missing.length) console.log("trusts without an LSB spell:", missing.join(", "));
+}
+
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
 const titleCase = (s: string) => s.split("_").map((w) => (["of", "the"].includes(w) ? w : w[0].toUpperCase() + w.slice(1))).join(" ");
 
@@ -631,6 +657,9 @@ function selfCheck(db: DatabaseSync) {
   const one = (sql: string, ...p: any[]) => db.prepare(sql).get(...p) as any;
   for (const t of TABLES) assert(one(`SELECT count(*) c FROM ${t}`).c > 0, `${t} empty`);
   assert.equal(one("SELECT name FROM mod_names WHERE id=8").name, "STR");
+  const kupipi = one("SELECT * FROM trusts WHERE name='Kupipi'");
+  assert.deepEqual([kupipi.jobs, kupipi.role, kupipi.spellid, kupipi.ace, kupipi.cw], ["WHM", "Healers", 898, 1, 1]);
+  assert(one("SELECT count(*) c FROM trusts").c > 50, "trusts parsed");
   const vorpal = one("SELECT * FROM sc_skills WHERE kind='ws' AND name='Vorpal Blade'");
   assert.deepEqual([vorpal.sc1, vorpal.sc2, vorpal.weapon], [4, 8, "Sword"]); // Scission, Impaction
   assert.equal(one("SELECT tag FROM sc_skills WHERE name='Knights Of Round'").tag, "Relic");

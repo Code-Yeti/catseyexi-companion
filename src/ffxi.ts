@@ -36,6 +36,14 @@ export const wikiUrl = (title: string) => `https://www.bg-wiki.com/ffxi/${encode
 // Mods like ITEM_ADDEFFECT_* are server plumbing for weapon procs, not stats worth showing.
 export const shownMod = (name: string) => !name.startsWith("Item ");
 
+// Lowest BLU level at which a trait tier is reachable: take the category's spells lowest level first until their
+// weights add up to `need`. null when even every spell falls short.
+export function unlockLevel(cands: { level: number; trait_weight: number }[], need: number): number | null {
+  let sum = 0;
+  for (const s of [...cands].sort((a, b) => a.level - b.level)) if ((sum += s.trait_weight) >= need) return s.level;
+  return null;
+}
+
 // Cheapest set of spells (by set points) whose trait weights reach `need`. Spells you've learned or can learn now
 // are preferred; spells above your level are a last resort. Categories have <= ~12 spells, so brute force is fine.
 export function solveTrait<S extends { trait_weight: number }>(cands: S[], need: number, cost: (s: S) => number): S[] | null {

@@ -21,7 +21,7 @@ export default function BlueMage() {
   const [filter, setFilter] = useState({ text: "", hideLearned: true, onlyLearnable: false });
   const [open, setOpen] = useState<string>();
   const [adjust, setAdjust] = useState<string>();
-  const [tab, setTab] = useState<"spells" | "set" | "traits">("spells");
+  const [tab, setTab] = useState<"spells" | "usable" | "set" | "traits">("spells");
   const showSpell = (name: string) => { setTab("spells"); setFilter({ text: name, hideLearned: false, onlyLearnable: false }); setOpen(name); };
 
   useEffect(() => {
@@ -43,10 +43,11 @@ export default function BlueMage() {
     setLearned(next);
   };
 
-  const shown = useMemo(() => spells.filter((s) =>
+  // Usable: learned and within your BLU level, so it can be set right now.
+  const shown = useMemo(() => spells.filter((s) => tab === "usable" ? learned.has(s.name) && s.level <= blu && s.name.toLowerCase().includes(filter.text.toLowerCase()) :
     (!filter.hideLearned || !learned.has(s.name)) &&
     (!filter.onlyLearnable || s.level <= blu) &&
-    s.name.toLowerCase().includes(filter.text.toLowerCase())), [spells, learned, filter, blu]);
+    s.name.toLowerCase().includes(filter.text.toLowerCase())), [spells, learned, filter, blu, tab]);
 
   return (
     <div>
@@ -62,16 +63,18 @@ export default function BlueMage() {
       </details>
       <div className="row">
         <button className={tab === "spells" ? "active-tab" : ""} onClick={() => setTab("spells")}>Spells</button>
+        <button className={tab === "usable" ? "active-tab" : ""} onClick={() => setTab("usable")}>Usable now</button>
         <button className={tab === "set" ? "active-tab" : ""} onClick={() => setTab("set")}>Current set</button>
         <button className={tab === "traits" ? "active-tab" : ""} onClick={() => setTab("traits")}>Trait planner</button>
       </div>
       {tab === "set" ? <BluSet blu={blu} learned={learned} onSpell={showSpell} /> : tab === "traits" ? <BluTraits blu={blu} learned={learned} onSpell={showSpell} /> : <>
       <div className="row">
         <input placeholder="Filter spells" value={filter.text} onChange={(e) => setFilter({ ...filter, text: e.target.value })} />
+        {tab === "spells" && <>
         <label><input type="checkbox" checked={filter.hideLearned} onChange={(e) => setFilter({ ...filter, hideLearned: e.target.checked })} /> Hide learned</label>
-        <label><input type="checkbox" checked={filter.onlyLearnable} onChange={(e) => setFilter({ ...filter, onlyLearnable: e.target.checked })} /> Only ≤ my level</label>
+        <label><input type="checkbox" checked={filter.onlyLearnable} onChange={(e) => setFilter({ ...filter, onlyLearnable: e.target.checked })} /> Only ≤ my level</label></>}
       </div>
-      <p className="muted">To learn a spell, use BLU as main job and defeat a mob that gives EXP while it uses the ability.</p>
+      {tab === "spells" && <p className="muted">To learn a spell, use BLU as main job and defeat a mob that gives EXP while it uses the ability.</p>}
       <table>
         <thead><tr><th></th><th>Spell</th><th>Lv</th><th>Pts</th><th>Learn from</th></tr></thead>
         <tbody>
