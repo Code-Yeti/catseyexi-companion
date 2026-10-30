@@ -3,8 +3,9 @@ import { getKv, setKv } from "./db";
 
 // User preferences, one JSON blob in user.db kv. Components share it through usePrefs(); a window event syncs them.
 export type Corner = "top-right" | "top-left" | "bottom-right" | "bottom-left";
-export type Prefs = { cardCorner: Corner; cardScale: number; soundLearnable: boolean; soundLearned: boolean };
-const DEFAULTS: Prefs = { cardCorner: "top-right", cardScale: 1, soundLearnable: true, soundLearned: true };
+export type Prefs = { cardCorner: Corner; cardScale: number; soundLearnable: boolean; soundLearned: boolean; scriptsDir: string; userDir: string };
+const DEFAULTS: Prefs = { cardCorner: "top-right", cardScale: 1, soundLearnable: true, soundLearned: true,
+  scriptsDir: "D:\\catseyexi\\catseyexi-client\\Vanacore\\scripts", userDir: "D:\\catseyexi\\catseyexi-client\\Game\\FINAL FANTASY XI\\USER" };
 
 let cache: Prefs | undefined;
 const load = async () => (cache ??= { ...DEFAULTS, ...JSON.parse((await getKv("prefs")) ?? "{}") });

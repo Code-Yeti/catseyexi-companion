@@ -297,3 +297,119 @@ export function parseTraining(lines: { text: string; time: number; mob?: string 
   return { regime: regime && { targets: [...regime.targets.values()], complete: regime.complete, reward: rewards.get("regime") },
     roe: [...roe.values()].sort(newest), other: [...other.values()].sort(newest) };
 }
+
+// ---- FFXI macro files (USER/<id>/mcr*.dat, mcr.ttl, mcr_2.ttl) ----
+// Every file: u32 version 1, u32 unknown, 16-byte MD5 of everything after the 24-byte header (the client checks it).
+// mcrN.dat (N = book*10 + set, N=0 is mcr.dat): 20 macros (Ctrl 1-10 then Alt 1-10) of 380 bytes:
+// u32 0, 6 lines of 61 bytes, 10-byte title. Book titles: mcr.ttl = books 1-20, mcr_2.ttl = 21-40, 16 bytes each.
+// Text is Shift-JIS with auto-translate phrases as FD xx xx xx xx FD. Editing keeps it lossless with tokens:
+// {AT:xxxxxxxx} for auto-translate, {hh} for any other non-ASCII byte (and "{" itself).
+export const MACRO = { line: 61, lines: 6, title: 10, size: 380, count: 20, header: 24 };
+export type Macro = { title: string; lines: string[] };
+
+export function macroText(b: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < b.length && b[i]; i++) {
+    const c = b[i];
+    if (c === 0xfd && b[i + 5] === 0xfd) {
+      s += `{AT:${[...b.subarray(i + 1, i + 5)].map((x) => x.toString(16).padStart(2, "0")).join("")}}`;
+      i += 5;
+    } else s += c >= 0x20 && c < 0x7f && c !== 0x7b ? String.fromCharCode(c) : `{${c.toString(16).padStart(2, "0")}}`;
+  }
+  return s;
+}
+
+// Throws if the text has a character the macro can't hold; truncation is left to the caller's length check.
+export function macroBytes(s: string): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const m = /^\{AT:([0-9a-f]{8})\}|^\{([0-9a-f]{2})\}/i.exec(s.slice(i));
+    if (m) {
+      const hex = m[1] ?? m[2];
+      if (m[1]) out.push(0xfd);
+      for (let j = 0; j < hex.length; j += 2) out.push(parseInt(hex.slice(j, j + 2), 16));
+      if (m[1]) out.push(0xfd);
+      i += m[0].length - 1;
+    } else {
+      const c = s.charCodeAt(i);
+      if (c < 0x20 || c >= 0x7f) throw new Error(`Can't use "${s[i]}" in a macro`);
+      out.push(c);
+    }
+  }
+  return out;
+}
+
+export function decodeMacros(file: Uint8Array | null): Macro[] {
+  return Array.from({ length: MACRO.count }, (_, k) => {
+    if (!file) return { title: "", lines: Array(MACRO.lines).fill("") };
+    const o = MACRO.header + k * MACRO.size + 4;
+    const lines = Array.from({ length: MACRO.lines }, (_, l) => macroText(file.subarray(o + l * MACRO.line, o + (l + 1) * MACRO.line)));
+    return { title: macroText(file.subarray(o + MACRO.lines * MACRO.line, o + MACRO.lines * MACRO.line + MACRO.title)), lines };
+  });
+}
+
+// Writes a field, NUL-padded; the last byte stays NUL. Throws when the text is too long.
+function putField(buf: Uint8Array, at: number, len: number, s: string, what: string) {
+  const b = macroBytes(s);
+  if (b.length > len - 1) throw new Error(`${what} is ${b.length} bytes, max ${len - 1}`);
+  buf.fill(0, at, at + len);
+  buf.set(b, at);
+}
+
+// `base` keeps the header's unknown word and each macro's leading u32 from the original file.
+export function encodeMacros(macros: Macro[], base: Uint8Array | null): Uint8Array {
+  const buf = new Uint8Array(MACRO.header + MACRO.count * MACRO.size);
+  if (base?.length === buf.length) buf.set(base);
+  else buf.set([1, 0, 0, 0, 0, 0, 0x80, 0xbf]);
+  macros.forEach((m, k) => {
+    const o = MACRO.header + k * MACRO.size + 4;
+    m.lines.forEach((l, i) => putField(buf, o + i * MACRO.line, MACRO.line, l, `Macro ${k + 1} line ${i + 1}`));
+    putField(buf, o + MACRO.lines * MACRO.line, MACRO.title, m.title, `Macro ${k + 1} title`);
+  });
+  return sealMacroFile(buf);
+}
+
+export const decodeBookTitles = (f: Uint8Array) => Array.from({ length: 20 }, (_, i) => macroText(f.subarray(24 + i * 16, 40 + i * 16)));
+export function encodeBookTitles(titles: string[], base: Uint8Array): Uint8Array {
+  const buf = base.slice();
+  titles.forEach((t, i) => putField(buf, 24 + i * 16, 16, t, `Book title "${t}"`));
+  return sealMacroFile(buf);
+}
+
+function sealMacroFile(buf: Uint8Array) {
+  buf.set(md5(buf.subarray(MACRO.header)), 8);
+  return buf;
+}
+
+// Plain MD5 (RFC 1321): WebCrypto doesn't offer it.
+export function md5(data: Uint8Array): Uint8Array {
+  const S = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+  const K = Array.from({ length: 64 }, (_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0);
+  const n = ((data.length + 8) >>> 6) + 1 << 6;
+  const m = new Uint8Array(n);
+  m.set(data);
+  m[data.length] = 0x80;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(n - 8, data.length * 8, true);
+  dv.setUint32(n - 4, Math.floor(data.length / 2 ** 29), true);
+  let [a0, b0, c0, d0] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476];
+  for (let o = 0; o < n; o += 64) {
+    let [a, b, c, d] = [a0, b0, c0, d0];
+    for (let i = 0; i < 64; i++) {
+      const r = i >> 4;
+      const f = r === 0 ? (b & c) | (~b & d) : r === 1 ? (d & b) | (~d & c) : r === 2 ? b ^ c ^ d : c ^ (b | ~d);
+      const g = r === 0 ? i : r === 1 ? (5 * i + 1) & 15 : r === 2 ? (3 * i + 5) & 15 : (7 * i) & 15;
+      const t = d;
+      d = c;
+      c = b;
+      const x = (a + f + K[i] + dv.getUint32(o + g * 4, true)) | 0;
+      const s = S[r * 4 + (i & 3)];
+      b = (b + ((x << s) | (x >>> (32 - s)))) | 0;
+      a = t;
+    }
+    a0 = (a0 + a) | 0; b0 = (b0 + b) | 0; c0 = (c0 + c) | 0; d0 = (d0 + d) | 0;
+  }
+  const out = new DataView(new ArrayBuffer(16));
+  [a0, b0, c0, d0].forEach((v, i) => out.setUint32(i * 4, v, true));
+  return new Uint8Array(out.buffer);
+}

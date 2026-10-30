@@ -75,6 +75,17 @@ export default function Settings() {
         <button onClick={() => chime("learned")}>Test</button>
       </div>
 
+      <h2>Macros and scripts</h2>
+      <p className="muted">Folders the Macros page edits. FFXI keeps macros in its USER folder, one subfolder per character.</p>
+      <div className="row">
+        <span>Ashita scripts</span>
+        <input style={{ flex: 1 }} value={prefs.scriptsDir} onChange={(e) => setPrefs({ scriptsDir: e.target.value })} />
+      </div>
+      <div className="row">
+        <span>FFXI USER folder</span>
+        <input style={{ flex: 1 }} value={prefs.userDir} onChange={(e) => setPrefs({ userDir: e.target.value })} />
+      </div>
+
       <h2>Zone maps</h2>
       <p className="muted">
         Maps come from bg-wiki: Square Enix's in-game maps, annotated by the community. Each map downloads to this PC the first

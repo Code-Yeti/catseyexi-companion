@@ -147,3 +147,24 @@ assert.equal(timedRoe(at("2026-10-27T15:00:00Z")).name, "Vanquish Undead"); // W
 assert.equal(timedRoe(at("2026-10-25T14:59:00Z")).name, "Gain Experience"); // Sunday 20-24 JST
 assert.equal(nextTimedRoe("Gain Experience", at("2026-10-27T08:00:00Z")), at("2026-10-28T19:00:00Z")); // Thursday 04-08 JST
 console.log("timed roe ok");
+
+import { md5, decodeMacros, encodeMacros, decodeBookTitles, encodeBookTitles, macroText, macroBytes } from "../src/ffxi.ts";
+import { createHash } from "node:crypto";
+for (const s of ["", "abc", "x".repeat(55), "x".repeat(64), "y".repeat(7600)])
+  assert.equal(Buffer.from(md5(new TextEncoder().encode(s))).toString("hex"), createHash("md5").update(s).digest("hex"));
+// A macro file round-trips byte for byte except the junk after each NUL, and the checksum matches.
+const mf = new Uint8Array(24 + 20 * 380);
+mf.set([1, 0, 0, 0, 0, 0, 0x80, 0xbf]);
+mf.set([...new TextEncoder().encode('/ma "'), 0xfd, 2, 2, 0x26, 0x2e, 0xfd, ...new TextEncoder().encode('" <t>')], 28);
+mf.set(new TextEncoder().encode("Cure{"), 28 + 366);
+const ms = decodeMacros(mf);
+assert.equal(ms[0].lines[0], '/ma "{AT:0202262e}" <t>');
+assert.equal(ms[0].title, "Cure{7b}");
+const enc = encodeMacros(ms, mf);
+assert.deepEqual([...enc.subarray(24)], [...mf.subarray(24)]);
+assert.equal(Buffer.from(enc.subarray(8, 24)).toString("hex"), createHash("md5").update(mf.subarray(24)).digest("hex"));
+assert.equal(macroText(new Uint8Array(macroBytes("{82}{a0} hi"))), "{82}{a0} hi");
+assert.throws(() => encodeMacros([{ title: "toolongtitle", lines: ["", "", "", "", "", ""] }, ...ms.slice(1)], mf));
+const tt = new Uint8Array(344);
+assert.deepEqual(decodeBookTitles(encodeBookTitles(["BLU", ...Array(19).fill("x")], tt)).slice(0, 2), ["BLU", "x"]);
+console.log("macros ok");
