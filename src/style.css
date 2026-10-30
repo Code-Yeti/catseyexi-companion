@@ -129,3 +129,7 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 tr.current td { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .spell-desc { font-size: 12px; margin-top: 2px; }
 .spell-info { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 4px 0 8px; }
+.pips { display: inline-flex; gap: 3px; vertical-align: middle; }
+.pip { width: 13px; height: 13px; padding: 0; border-radius: 50%; border: 1.5px solid #4a5063; background: #0e1015; }
+.pip.have { background: var(--good); border-color: var(--good); box-shadow: 0 0 4px var(--good); }
+.pip.goal { background: var(--warn); border-color: var(--warn); box-shadow: 0 0 4px var(--warn); }

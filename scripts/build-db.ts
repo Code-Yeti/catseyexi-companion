@@ -174,6 +174,7 @@ async function main() {
   for (const m of cat.query.categorymembers) insPage.run(m.title.replace(/ /g, "_"), m.title);
 
   seedQuestNames(db); // before seedChecklists, which builds the mission lists from mission_names
+  seedMerits(db);
   await seedChecklists(db);
   await seedMaps(db);
   await seedDisplayNames(db); // before VIEWS: the zones view uses it
@@ -650,6 +651,49 @@ async function seedTrusts(db: DatabaseSync) {
   if (missing.length) console.log("trusts without an LSB spell:", missing.join(", "));
 }
 
+// Merits as of the Lv75 era: LSB data/merits.yaml with modules/era/data/merits.yaml merged over it. A merit's cap is its
+// cost table's length unless it sets max_upgrades; max_upgrades 0 (on a merit or a whole category) disables it.
+function seedMerits(db: DatabaseSync) {
+  const show = (f: string) => execFileSync("git", ["-C", join(LSB_SQL, ".."), "show", `HEAD:${f}`], { encoding: "utf8" });
+  // ponytail: parses only the YAML subset merits.yaml uses (nested maps, scalars, inline [lists]); "- " list items skipped
+  const yaml = (text: string) => {
+    const root: any = {}, stack = [{ ind: -1, obj: root }];
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.replace(/\s+#.*$/, "").replace(/^\s*#.*$/, "");
+      const m = line.trim().match(/^([^:-][^:]*):\s*(.*)$/);
+      if (!m) continue;
+      const ind = line.search(/\S/);
+      while (stack.at(-1)!.ind >= ind) stack.pop();
+      const parent = stack.at(-1)!.obj, [, k, v] = m, num = (s: string) => (isNaN(Number(s)) ? s : Number(s));
+      if (v === "") stack.push({ ind, obj: (parent[k] ??= {}) });
+      else parent[k] = v.startsWith("[") ? v.slice(1, -1).split(",").map((s) => num(s.trim())) : num(v);
+    }
+    return root;
+  };
+  const merge = (a: any, b: any) => {
+    for (const k in b) a[k] = b[k] && typeof b[k] === "object" && !Array.isArray(b[k]) && a[k] ? merge(a[k], b[k]) : b[k];
+    return a;
+  };
+  const m = merge(yaml(show("data/merits.yaml")), yaml(show("modules/era/data/merits.yaml"))).merits;
+  const WORDS: Record<string, string> = { hp: "HP", mp: "MP", str: "STR", dex: "DEX", vit: "VIT", agi: "AGI", int: "INT", mnd: "MND", chr: "CHR",
+    tp: "TP", ii: "II", iii: "III", v: "V", hand: "Hand-to-Hand", adventurers: "Adventurer's", assassins: "Assassin's", warriors: "Warrior's" };
+  const name = (k: string) => k.replace(/_skill$/, "").replace(/^hand_to_hand$/, "hand").split("_").map((w) => WORDS[w] ?? w[0].toUpperCase() + w.slice(1)).join(" ")
+    .replace(/ San$/, ": San").replace("Acc Att", "Acc./Att.").replace("Enemy Crit Rate", "Enemy Critical Hit Rate").replace("Crit Hit", "Critical Hit");
+  db.exec("CREATE TABLE merits (id INTEGER PRIMARY KEY, cat TEXT, cap INT, name TEXT, costs TEXT, ord INT)");
+  const ins = db.prepare("INSERT INTO merits VALUES (?,?,?,?,?,?)");
+  let ord = 0;
+  for (const [cat, c] of Object.entries<any>(m.categories)) {
+    if (!c.max_upgrades) continue;
+    for (const [k, x] of Object.entries<any>(c.merits ?? {})) {
+      const costs: number[] = m.upgrade_costs[x.upgrade_cost];
+      const max = x.max_upgrades ?? costs.length;
+      if (!max || x.jobs?.every((j: string) => j === "geo" || j === "run")) continue;
+      ins.run(x.id, cat, c.max_upgrades, name(k), costs.slice(0, max).join(","), ord++);
+    }
+  }
+  console.log(`merits: ${ord}`);
+}
+
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
 const titleCase = (s: string) => s.split("_").map((w) => (["of", "the"].includes(w) ? w : w[0].toUpperCase() + w.slice(1))).join(" ");
 
@@ -696,6 +740,10 @@ function selfCheck(db: DatabaseSync) {
   assert.equal(one("SELECT count(*) c FROM mob_index WHERE zoneid=261 AND era=1").c, 0, "Ceizak (Adoulin) isn't 75-cap content");
   assert.equal(one("SELECT name FROM quest_names WHERE log=0 AND id=0").name, "A Sentrys Peril");
   assert.equal(one("SELECT name FROM mission_names WHERE log=0 AND id=0").name, "Smash The Orcish Scouts");
+  assert.deepEqual({ ...one("SELECT * FROM merits WHERE id=0x40") }, { id: 0x40, cat: "hp_mp", cap: 8, name: "Max HP", costs: "1,2,3,4,5,5,5,5", ord: 0 });
+  assert.equal(one("SELECT costs FROM merits WHERE name='Protectra V'").costs, "3,4,5", "era re-adds merited spells");
+  assert(!one("SELECT 1 x FROM merits WHERE cat IN ('weapon_skills', 'geo_group_1') OR name IN ('Max Merit', 'Geomancy')"), "post-75 merits left out");
+  assert.equal(one("SELECT count(DISTINCT cat) c FROM merits").c, 45, "5 general categories + 2 groups for 20 jobs");
   console.log("self-check ok");
 }
 

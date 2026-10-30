@@ -26,11 +26,12 @@ import Storage from "./pages/Storage";
 import Skillchains from "./pages/Skillchains";
 import Trusts from "./pages/Trusts";
 import Macros from "./pages/Macros";
+import Merits from "./pages/Merits";
 import Portrait from "./components/Portrait";
 
 const NAV: [Page["name"], string][] = [
   ["character", "Character"], ["map", "Map"], ["search", "Search"], ["mobs", "Mobs"], ["blu", "Blue Magic"], ["skillchains", "Skillchains"],
-  ["gear", "Gear"], ["storage", "Storage"], ["progress", "Progress"], ["training", "Training"], ["trusts", "Trusts"], ["friends", "Friends"], ["macros", "Macros"], ["settings", "Settings"],
+  ["gear", "Gear"], ["storage", "Storage"], ["progress", "Progress"], ["training", "Training"], ["merits", "Merits"], ["trusts", "Trusts"], ["friends", "Friends"], ["macros", "Macros"], ["settings", "Settings"],
 ];
 const FRIEND_POLL_MS = 3 * 60_000; // be gentle with catseyexi.com: your character + each friend, once per tick
 const INVENTORY_EVERY = 5;          // ticks (~15 min); inventory changes slowly
@@ -320,6 +321,7 @@ export default function App() {
       case "storage": return <Storage />;
       case "skillchains": return <Skillchains />;
       case "trusts": return <Trusts />;
+      case "merits": return <Merits />;
       case "macros": return <Macros />;
     }
   })();

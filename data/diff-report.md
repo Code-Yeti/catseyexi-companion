@@ -1,6 +1,6 @@
 # LSB vs CatseyeXI diff report
 
-Generated 2026-10-28T08:10:43.375Z
+Generated 2026-10-30T20:13:01.154Z
 
 ## Blue Magic: 16 spells added/relocated by CatseyeXI (bg-wiki)
 

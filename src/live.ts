@@ -22,6 +22,7 @@ export type Live = {
   engaged?: boolean;                      // player has weapons drawn
   moves?: { actor: number; skill: number; ready: boolean; time: number }[]; // monster TP moves seen (mob_skill_id)
   logs?: Record<string, string>;            // 0x056 port -> 32 bytes hex
+  merits?: Record<string, number>;          // merit id -> upgrades (0x08C, so only after a zone-in with the addon loaded)
 };
 
 export const STALE_SECONDS = 12; // addon heartbeats every 5s
