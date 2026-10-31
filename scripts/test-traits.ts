@@ -168,3 +168,17 @@ assert.throws(() => encodeMacros([{ title: "toolongtitle", lines: ["", "", "", "
 const tt = new Uint8Array(344);
 assert.deepEqual(decodeBookTitles(encodeBookTitles(["BLU", ...Array(19).fill("x")], tt)).slice(0, 2), ["BLU", "x"]);
 console.log("macros ok");
+
+import { conBand, levelSpots, type SpotMob } from "../src/ffxi.ts";
+assert.deepEqual(conBand(1), { dc: -2, vt: 5 });
+assert.deepEqual(conBand(75), { dc: -7, vt: 7 });
+const sm = (zoneid: number, name: string, lo: number, hi: number, o: Partial<SpotMob> = {}): SpotMob =>
+  ({ zoneid, zone: `Z${zoneid}`, name, lo, hi, n: 10, aggro: 0, sleeps: null, silences: null, ...o });
+const mobsL = [sm(1, "Hare", 9, 11), sm(1, "Bee", 10, 12), sm(1, "Goblin", 16, 18, { aggro: 1 }),
+  sm(2, "Sheep", 10, 11, { sleeps: "sheep song" }), sm(2, "Crab", 9, 10), sm(2, "Bat", 11, 13), sm(2, "NM", 12, 12, { n: 1 })];
+const full = levelSpots(mobsL, 10, false), pres = levelSpots(mobsL, 10, true);
+assert.deepEqual(full.map((s) => s.score), [25, 20]); // the sleeping sheep counts half, the NM not at all
+assert.equal(full[1].danger[0].name, "Goblin");
+assert.deepEqual(pres.filter((s) => s.ok).map((s) => s.zoneid), [2]); // aggressive Very Tough goblin rules zone 1 out
+assert(!pres[1].targets.some((m) => m.name === "NM"));
+console.log("level spots ok");

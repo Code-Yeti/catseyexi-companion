@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { pretty, setDisplayNames, expGain, wsPoints, parseWsPoints, type ExpSnap } from "./ffxi";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { JOBS, pretty, setDisplayNames, expGain, wsPoints, parseWsPoints, type ExpSnap } from "./ffxi";
 import "./style.css";
 import { Ctx, type Friend, type Page } from "./ctx";
 import { getChar, getOwned, type Character } from "./catseye";
@@ -16,13 +16,11 @@ import Mob from "./pages/Mob";
 import Mobs from "./pages/Mobs";
 import Item from "./pages/Item";
 import BlueMage from "./pages/BlueMage";
-import Gear from "./pages/Gear";
 import Progress from "./pages/Progress";
 import Training from "./pages/Training";
 import Friends from "./pages/Friends";
 import Settings from "./pages/Settings";
 import LiveMap from "./pages/LiveMap";
-import Storage from "./pages/Storage";
 import Skillchains from "./pages/Skillchains";
 import Trusts from "./pages/Trusts";
 import Macros from "./pages/Macros";
@@ -31,7 +29,7 @@ import Portrait from "./components/Portrait";
 
 const NAV: [Page["name"], string][] = [
   ["character", "Character"], ["map", "Map"], ["search", "Search"], ["mobs", "Mobs"], ["blu", "Blue Magic"], ["skillchains", "Skillchains"],
-  ["gear", "Gear"], ["storage", "Storage"], ["progress", "Progress"], ["training", "Training"], ["merits", "Merits"], ["trusts", "Trusts"], ["friends", "Friends"], ["macros", "Macros"], ["settings", "Settings"],
+  ["progress", "Progress"], ["training", "Training"], ["merits", "Merits"], ["trusts", "Trusts"], ["friends", "Friends"], ["macros", "Macros"], ["settings", "Settings"],
 ];
 const FRIEND_POLL_MS = 3 * 60_000; // be gentle with catseyexi.com: your character + each friend, once per tick
 const INVENTORY_EVERY = 5;          // ticks (~15 min); inventory changes slowly
@@ -42,7 +40,7 @@ export default function App() {
   const [prefs] = usePrefs();
   const [history, setHistory] = useState<Page[]>([]);
   const [charId, setCharId] = useState<string>();
-  const [char, setChar] = useState<Character>();
+  const [webChar, setChar] = useState<Character>();
   const [owned, setOwned] = useState<Set<number>>(new Set());
   const [fetchedAt, setFetchedAt] = useState<number>();
   const [stale, setStale] = useState<string>();
@@ -155,7 +153,27 @@ export default function App() {
 
   // ---- Optional Ashita addon bridge (live.json, ~1/s). Only trusted when fresh and for the loaded character. ----
   const [liveRaw, setLiveRaw] = useState<Live | null>(null);
-  const live = isFresh(liveRaw) && (!char || liveRaw.char === char.charname) ? liveRaw : null;
+  const live = isFresh(liveRaw) && (!webChar || liveRaw.char === webChar.charname) ? liveRaw : null;
+  // The game's current jobs beat the web profile, which lags behind a job change. mainJob is 0 while zoning.
+  const lj = live?.mainJob ? `${live.mainJob},${live.mainLevel},${live.subJob},${live.subLevel}` : "";
+  const char = useMemo(() => {
+    if (!webChar || !lj) return webChar;
+    const [mj, ml, sj, sl] = lj.split(","), key = JOBS[Number(mj) - 1];
+    return { ...webChar, mjob: mj, mlvl: ml, sjob: sj, slvl: sl, jobs: key ? { ...webChar.jobs, [key]: Number(ml) } : webChar.jobs };
+  }, [webChar, lj]);
+  // Prestige mode (kv "prestige" = the main job it was turned on for) ends when you change main job. Only a change seen
+  // while the app runs counts, so a stale cached profile at startup doesn't switch it off.
+  const lastJob = useRef("");
+  useEffect(() => {
+    const j = String(char?.mjob ?? ""), was = lastJob.current;
+    if (!j) return;
+    lastJob.current = j;
+    if (was && was !== j) getKv("prestige").then((p) => {
+      if (p !== was) return;
+      setKv("prestige", "");
+      toast("Prestige mode off", "Main job changed: leveling suggestions are back to a full trust party.", { name: "training" });
+    });
+  }, [char?.mjob]);
   const [liveLearned, setLiveLearned] = useState<Set<string> | null>(null);
   const learnedKey = useRef("");
   useEffect(() => {
@@ -312,13 +330,11 @@ export default function App() {
       case "mobs": return <Mobs />;
       case "item": return <Item key={page.id} id={page.id} />;
       case "blu": return <BlueMage />;
-      case "gear": return <Gear />;
       case "progress": return <Progress />;
       case "training": return <Training />;
       case "friends": return <Friends />;
       case "settings": return <Settings />;
       case "map": return <LiveMap />;
-      case "storage": return <Storage />;
       case "skillchains": return <Skillchains />;
       case "trusts": return <Trusts />;
       case "merits": return <Merits />;

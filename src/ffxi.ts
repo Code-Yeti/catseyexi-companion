@@ -413,3 +413,28 @@ export function md5(data: Uint8Array): Uint8Array {
   [a0, b0, c0, d0].forEach((v, i) => out.setUint32(i * 4, v, true));
   return new Uint8Array(out.buffer);
 }
+
+// ---------- leveling spots (Training page) ----------
+// Con bands from LSB scripts/globals/experience_points.lua, levels 1-75: a mob `dc` levels below you is still a Decent
+// Challenge, `vt` above is Very Tough (Tough from +1, Even Match at 0).
+export function conBand(lvl: number) {
+  return { dc: lvl <= 30 ? -2 : lvl <= 40 ? -3 : lvl <= 50 ? -4 : lvl <= 60 ? -5 : lvl <= 70 ? -6 : -7, vt: lvl <= 45 ? 5 : lvl <= 55 ? 6 : 7 };
+}
+export type SpotMob = { zoneid: number; zone: string; name: string; lo: number; hi: number; n: number; aggro: number; sleeps: string | null; silences: string | null };
+export type Spot = { zoneid: number; zone: string; targets: SpotMob[]; danger: SpotMob[]; score: number; ok: boolean };
+// Zones ranked by how many common targets (2+ spawns, so not NMs) con Decent Challenge up to Very Tough with a full
+// trust party, or only up to Tough in prestige mode (2 trusts), where any aggressive Very Tough mob rules the zone out.
+// Sleepers and silencers count half: they're the usual wipe with few trusts.
+export function levelSpots(mobs: SpotMob[], lvl: number, prestige: boolean): Spot[] {
+  const { dc, vt } = conBand(lvl), top = lvl + (prestige ? vt - 1 : vt);
+  const zones = new Map<number, Spot>();
+  for (const m of mobs) {
+    if (m.n < 2) continue;
+    let z = zones.get(m.zoneid);
+    if (!z) zones.set(m.zoneid, z = { zoneid: m.zoneid, zone: m.zone, targets: [], danger: [], score: 0, ok: false });
+    if (m.aggro && m.hi >= lvl + vt) z.danger.push(m);
+    if (m.lo <= top && m.hi >= lvl + dc) { z.targets.push(m); z.score += m.sleeps || m.silences ? m.n / 2 : m.n; }
+  }
+  for (const z of zones.values()) z.ok = z.targets.length >= 2 && !(prestige && z.danger.length);
+  return [...zones.values()].sort((a, b) => b.score - a.score);
+}

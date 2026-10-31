@@ -62,7 +62,7 @@ export default function Gear() {
 
   return (
     <div>
-      <h1>Gear planner</h1>
+      <h2>Gear planner</h2>
       <div className="row">
         <select value={job} onChange={(e) => setJob(e.target.value)}>
           {JOBS.map((j) => <option key={j} value={j}>{j.toUpperCase()} {char ? `(${char.jobs[j] ?? 0})` : ""}</option>)}

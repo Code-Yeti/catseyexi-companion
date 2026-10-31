@@ -22,6 +22,7 @@ const TABLES = [
   "zone_settings", "mob_spawn_points", "mob_groups", "mob_pools", "mob_skill_lists",
   "mob_skills", "blue_spell_list", "blue_spell_mods", "spell_list", "mob_droplist",
   "item_basic", "item_equipment", "item_mods", "item_weapon", "blue_traits", "traits", "zonelines", "npc_list", "weapon_skills",
+  "mob_spell_lists",
 ];
 
 // Skillchain builder: every weapon skill a Lv75 character can have (skill <= 276, plus relic and the ToAU-era mythic
@@ -202,6 +203,8 @@ async function main() {
              JOIN mob_skill_lists sl ON sl.mob_skill_id = bs.mob_skill_id WHERE sl.skill_list_id = mob_index.skill_list_id AND b.available = 1));
     CREATE INDEX ix_mi_zone ON mob_index(zoneid);
     CREATE INDEX ix_mi_name ON mob_index(mobname, zoneid);`);
+  seedStatusRisk(db);
+  seedRegimes(db);
   seedSkillchainSkills(db);
   await seedTrusts(db);
   await seedCxLevels(db);
@@ -651,6 +654,59 @@ async function seedTrusts(db: DatabaseSync) {
   if (missing.length) console.log("trusts without an LSB spell:", missing.join(", "));
 }
 
+const lsbShow = (f: string) => execFileSync("git", ["-C", join(LSB_SQL, ".."), "show", `HEAD:${f}`], { encoding: "utf8", maxBuffer: 1 << 26 });
+const lsbGrep = (re: string, path: string) => execFileSync("git", ["-C", join(LSB_SQL, ".."), "grep", "-n", "-E", re, "HEAD", "--", path],
+  { encoding: "utf8", maxBuffer: 1 << 26 }).split(/\r?\n/).filter(Boolean);
+
+// Sleep / silence risk per mob, for the Training page's leveling suggestions: TP moves whose LSB script applies the
+// effect, plus spells by name (a mob spell only counts from its min_level).
+function seedStatusRisk(db: DatabaseSync) {
+  db.exec("CREATE TABLE status_skills (name TEXT, kind TEXT, PRIMARY KEY (name, kind))");
+  const ins = db.prepare("INSERT OR IGNORE INTO status_skills VALUES (?,?)");
+  for (const l of lsbGrep("effect\\.(SLEEP_I|SLEEP_II|LULLABY|SILENCE)\\b", "scripts/actions/mobskills")) {
+    if (/delStatusEffect|hasStatusEffect|eraseStatusEffect/.test(l)) continue; // removers and checks, not inflicters
+    const m = l.match(/mobskills\/(\w+)\.lua:\d+:.*effect\.(\w+)/);
+    if (m) ins.run(m[1], m[2] === "SILENCE" ? "silence" : "sleep");
+  }
+  db.function("regexp", (re: string, s: string) => (new RegExp(re).test(s ?? "") ? 1 : 0));
+  const skills = (kind: string) => `SELECT group_concat(DISTINCT replace(k.mob_skill_name, '_', ' ')) FROM mob_skill_lists sl
+    JOIN mob_skills k ON k.mob_skill_id = sl.mob_skill_id JOIN status_skills st ON st.name = k.mob_skill_name AND st.kind = '${kind}'
+    WHERE sl.skill_list_id = mob_index.skill_list_id`;
+  const spells = (re: string) => `SELECT group_concat(DISTINCT replace(s.name, '_', ' ')) FROM mob_pools p
+    JOIN mob_spell_lists l ON l.spell_list_id = p.spellList JOIN spell_list s ON s.spellid = l.spell_id
+    WHERE p.poolid = mob_index.poolid AND l.min_level <= mob_index.hi AND s.name REGEXP '${re}'`;
+  const both = (a: string, b: string) => `nullif(trim(coalesce((${a}), '') || ',' || coalesce((${b}), ''), ','), '')`;
+  db.exec(`ALTER TABLE mob_index ADD COLUMN sleeps TEXT; ALTER TABLE mob_index ADD COLUMN silences TEXT;
+    UPDATE mob_index SET sleeps = ${both(skills("sleep"), spells("^(sleep|sleepga|repose|.*lullaby)"))},
+      silences = ${both(skills("silence"), spells("^silence"))};`);
+}
+
+// Fields / Grounds of Valor training regimes: page rows from LSB scripts/globals/regimes.lua (counts, level range,
+// reward, regime id) and targets from the mob scripts that call xi.regime.checkRegime(player, mob, id, index, type).
+function seedRegimes(db: DatabaseSync) {
+  db.exec(`CREATE TABLE regimes (type TEXT, id INT, zoneid INT, lo INT, hi INT, counts TEXT, reward INT, PRIMARY KEY (type, id));
+    CREATE TABLE regime_targets (type TEXT, id INT, idx INT, mobname TEXT, zoneid INT)`);
+  const key = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const zoneId = new Map((db.prepare("SELECT zoneid, name FROM zone_settings").all() as any[]).map((z) => [key(z.name), z.zoneid as number]));
+  const ins = db.prepare("INSERT OR IGNORE INTO regimes VALUES (?,?,?,?,?,?,?)");
+  let type = "", zone: number | undefined;
+  for (const line of lsbShow("scripts/globals/regimes.lua").split(/\r?\n/)) {
+    const t = line.match(/\[xi\.regime\.type\.(FIELDS|GROUNDS)\] =/);
+    if (t) { type = t[1] === "FIELDS" ? "FoV" : "GoV"; continue; }
+    const z = line.match(/^\s+\[xi\.zone\.(\w+)\] =/);
+    if (z) { zone = zoneId.get(key(z[1])); assert(zone, `regime zone ${z[1]}`); continue; }
+    const r = line.match(/^\s+\{\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*\},/);
+    if (r && type && zone) ins.run(type, Number(r[8]), zone, Number(r[5]), Number(r[6]), r.slice(1, 5).filter((n) => n !== "0").join(","), Number(r[7]));
+  }
+  const tgt = db.prepare("INSERT INTO regime_targets VALUES (?,?,?,?,?)");
+  for (const l of lsbGrep("checkRegime\\(player, mob, [0-9]+, [0-9]+, xi\\.regime\\.type\\.", "scripts/zones")) {
+    const m = l.match(/zones\/(\w+)\/mobs\/(\w+)\.lua:\d+:.*checkRegime\(player, mob, (\d+), (\d+), xi\.regime\.type\.(FIELDS|GROUNDS)/);
+    const zid = m && zoneId.get(key(m[1]));
+    if (m && zid) tgt.run(m[5] === "FIELDS" ? "FoV" : "GoV", Number(m[3]), Number(m[4]), m[2], zid);
+  }
+  db.exec("CREATE INDEX ix_rt ON regime_targets(type, id)");
+}
+
 // Merits as of the Lv75 era: LSB data/merits.yaml with modules/era/data/merits.yaml merged over it. A merit's cap is its
 // cost table's length unless it sets max_upgrades; max_upgrades 0 (on a merit or a whole category) disables it.
 function seedMerits(db: DatabaseSync) {
@@ -708,6 +764,11 @@ function selfCheck(db: DatabaseSync) {
   assert.deepEqual([vorpal.sc1, vorpal.sc2, vorpal.weapon], [4, 8, "Sword"]); // Scission, Impaction
   assert.equal(one("SELECT tag FROM sc_skills WHERE name='Knights Of Round'").tag, "Relic");
   assert(!one("SELECT 1 x FROM sc_skills WHERE name='Requiescat'"), "99-era weapon skills left out");
+  const fov1 = one("SELECT * FROM regimes WHERE type='FoV' AND id=1");
+  assert.deepEqual([fov1.zoneid, fov1.lo, fov1.hi, fov1.counts], [100, 1, 6, "6"]); // West Ronfaure
+  assert(one("SELECT 1 x FROM regime_targets WHERE type='FoV' AND id=2 AND mobname='Forest_Hare'"), "regime targets from mob scripts");
+  assert(one("SELECT 1 x FROM mob_index WHERE sleeps LIKE '%sheep song%'"), "Sheep Song is a sleep risk");
+  assert(one("SELECT count(*) c FROM mob_index WHERE silences IS NOT NULL").c > 50, "silence risks found");
   assert(one("SELECT count(*) c FROM sc_skills WHERE kind='blu'").c > 30, "blue magic skillchain spells");
   assert.equal(one("SELECT name FROM zones WHERE zoneid=33").name, "Al'Taieu");
   assert.equal(one("SELECT name FROM mob_index WHERE mobname='Omaern' LIMIT 1").name, "Om'aern");

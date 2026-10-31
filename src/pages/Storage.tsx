@@ -29,7 +29,7 @@ export default function Storage() {
     const list = ids.filter(match).sort((a, b) => label(a).localeCompare(label(b)));
     return (
       <div>
-        <h1>Storage</h1>
+        <h2>Storage</h2>
         <p className="muted">Connect the game addon (Settings) to see every bag with counts. This is catseyexi.com's owned-items list.</p>
         <input placeholder="Search items" value={text} onChange={(e) => setText(e.target.value)} style={{ width: 300 }} />
         <table style={{ marginTop: 10 }}><tbody>
@@ -43,7 +43,7 @@ export default function Storage() {
   const total = order.reduce((a, c) => a + bags[c].length, 0);
   return (
     <div>
-      <h1>Storage <span className="tag own">live</span></h1>
+      <h2>Storage <span className="tag own">live</span></h2>
       <div className="row">
         <input placeholder="Search all bags" value={text} onChange={(e) => setText(e.target.value)} style={{ width: 300 }} />
         <span className="muted">{total} items in {order.length} bags</span>

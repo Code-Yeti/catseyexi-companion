@@ -5,6 +5,11 @@ import { q } from "../db";
 import { JOBS, LEVEL_CAP, NATIONS, SLOTS, accountLabel, jobName, pretty } from "../ffxi";
 import ItemIcon from "../components/ItemIcon";
 import Portrait from "../components/Portrait";
+import Gear from "./Gear";
+import Storage from "./Storage";
+
+type Tab = "overview" | "gear" | "storage";
+let lastTab: Tab = "overview"; // module-level so Back from an item returns to the same tab
 
 export default function CharacterPage() {
   const { char, charId, owned, fetchedAt, stale, loadChar, go } = useApp();
@@ -12,6 +17,8 @@ export default function CharacterPage() {
   const [busy, setBusy] = useState(false);
   const [names, setNames] = useState<Record<number, string>>({});
   const [zone, setZone] = useState<string>();
+  const [tab, setTabState] = useState<Tab>(lastTab);
+  const setTab = (t: Tab) => { lastTab = t; setTabState(t); };
 
   useEffect(() => {
     if (!char) return;
@@ -41,7 +48,12 @@ export default function CharacterPage() {
         {stale && <span className="warn">Offline, showing cached data ({stale})</span>}
       </div>
 
-      {!char ? (
+      <div className="row">
+        {(["overview", "gear", "storage"] as Tab[]).map((t) => (
+          <button key={t} className={tab === t ? "active-tab" : ""} onClick={() => setTab(t)}>{{ overview: "Overview", gear: "Gear", storage: "Storage" }[t]}</button>
+        ))}
+      </div>
+      {tab === "gear" ? <Gear /> : tab === "storage" ? <Storage /> : !char ? (
         <p className="muted">Enter your CatseyeXI character id to pull jobs, gear and owned items from catseyexi.com.</p>
       ) : (
         <>

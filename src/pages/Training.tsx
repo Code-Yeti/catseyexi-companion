@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useApp } from "../ctx";
-import { getKv, setKv } from "../db";
-import { dhm, isTimedRoe, nextTimedRoe, parseTraining, timedRoe, type Count } from "../ffxi";
+import { getKv, setKv, q } from "../db";
+import { conBand, dhm, isTimedRoe, jobName, levelSpots, nextTimedRoe, parseTraining, timedRoe, type Count, type SpotMob } from "../ffxi";
 
 const ago = (t: number) => {
   const m = Math.floor((Date.now() / 1000 - t) / 60);
@@ -20,6 +20,111 @@ function Bar({ c, remove }: { c: Count; remove?: () => void }) {
       <td className="muted">{ago(c.time)}</td>
       <td>{remove && <button onClick={remove} title="Hide until it makes progress again">Remove</button>}</td>
     </tr>
+  );
+}
+
+const cap = (s: string) => s.replace(/[a-z]/g, (c) => c.toUpperCase());
+// Sleep / silence warning for a mob (from its TP moves and spells in LSB).
+function Risk({ m }: { m: { sleeps: string | null; silences: string | null } }) {
+  return <>
+    {m.sleeps && <span className="warn" title={cap(m.sleeps)}> ⚠ sleep</span>}
+    {m.silences && <span className="warn" title={cap(m.silences)}> ⚠ silence</span>}
+  </>;
+}
+
+type RegimeRow = { type: string; id: number; zoneid: number; zone: string; lo: number; hi: number; counts: string; reward: number; targets: string | null };
+
+// Where to level: zones and Fields/Grounds of Valor regimes in the right con band for your level. Prestige mode
+// (kv "prestige" = the main job it was turned on for; App clears it on a job change) means 2 trusts and reduced EXP.
+function LevelSpots() {
+  const { char } = useApp();
+  const job = String(char?.mjob ?? ""), lvl = Number(char?.mlvl ?? 0);
+  const [prestigeJob, setPrestigeJob] = useState<string | null>(null);
+  useEffect(() => { getKv("prestige").then((v) => setPrestigeJob(v ?? "")); }, [job]);
+  const prestige = !!job && prestigeJob === job;
+  const toggle = () => { const v = prestige ? "" : job; setPrestigeJob(v); setKv("prestige", v); };
+  const [mobs, setMobs] = useState<SpotMob[]>([]);
+  const [regimes, setRegimes] = useState<RegimeRow[]>([]);
+  const { dc, vt } = conBand(lvl || 1), top = lvl + (prestige ? vt - 1 : vt);
+  useEffect(() => {
+    if (!lvl) return;
+    q<SpotMob>(`SELECT m.zoneid, m.zone, m.name, coalesce(m.cx_lo, m.lo) lo, coalesce(m.cx_hi, m.hi) hi, m.n, m.aggro, m.sleeps, m.silences
+      FROM mob_index m JOIN zone_settings z ON z.zoneid = m.zoneid WHERE m.era = 1 AND z.zonetype IN (2, 4) AND coalesce(m.cx_hi, m.hi) >= $1`, lvl + dc).then(setMobs);
+    // targets: name|sleeps|silences per regime target, resolved in its zone
+    q<RegimeRow>(`SELECT r.type, r.id, r.zoneid, z.name zone, r.lo, r.hi, r.counts, r.reward,
+        group_concat(DISTINCT m.name || '|' || replace(coalesce(m.sleeps, ''), ',', ', ') || '|' || replace(coalesce(m.silences, ''), ',', ', ')) targets
+      FROM regimes r JOIN zones z ON z.zoneid = r.zoneid LEFT JOIN regime_targets t ON t.type = r.type AND t.id = r.id
+      LEFT JOIN mob_index m ON m.mobname = t.mobname AND m.zoneid = t.zoneid
+      WHERE r.lo >= $1 AND r.hi <= $2 GROUP BY r.type, r.id ORDER BY r.hi DESC, r.reward DESC`, lvl + dc, top).then(setRegimes);
+  }, [lvl, prestige]);
+  const spots = levelSpots(mobs, lvl, prestige);
+  const byZone = new Map(spots.map((s) => [s.zoneid, s]));
+  // Every regime zone around Lv50 has some aggressive Very Tough mob, so they're flagged rather than dropped; in prestige
+  // mode the zones without one come first.
+  const risky = (r: RegimeRow) => (byZone.get(r.zoneid)?.danger.length ? 1 : 0);
+  const shownRegimes = (prestige ? [...regimes].sort((a, b) => risky(a) - risky(b)) : regimes).slice(0, 10);
+  const okSpots = spots.filter((s) => s.ok).slice(0, 8);
+  // Top 3 of each list, the rest behind a toggle row (in the same table, so the columns stay aligned).
+  const [more, setMore] = useState({ spots: false, regimes: false });
+  // The whole card folds to its header (kv "levelSpotsOpen"), closed by default so the progress above stays the focus.
+  const [open, setOpen] = useState(false);
+  useEffect(() => { getKv("levelSpotsOpen").then((v) => setOpen(v === "1")); }, []);
+  const flip = () => { setOpen(!open); setKv("levelSpotsOpen", open ? "0" : "1"); };
+  const fold = <T,>(rows: T[], k: keyof typeof more, cols: number, row: (r: T) => ReactNode) => <>
+    {(more[k] ? rows : rows.slice(0, 3)).map(row)}
+    {rows.length > 3 && <tr className="click muted" onClick={() => setMore({ ...more, [k]: !more[k] })}>
+      <td colSpan={cols}>{more[k] ? "▾ Show fewer" : `▸ ${rows.length - 3} more`}</td></tr>}
+  </>;
+  if (!char) return null;
+  const lv = (m: { lo: number; hi: number }) => m.lo === m.hi ? `${m.lo}` : `${m.lo}-${m.hi}`;
+  return (
+    <div className="card">
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <b onClick={flip} style={{ cursor: "pointer" }} title={open ? "Hide" : "Show leveling suggestions"}>{open ? "▾" : "▸"} Where to level · {jobName(job)}{lvl}</b>
+        <label title="Prestige: level reset to 1, reduced EXP, 2 trusts. Turns off by itself when you change main job.">
+          <input type="checkbox" checked={prestige} onChange={toggle} /> Prestige mode
+        </label>
+      </div>
+      {open && <><div className="muted">
+        {prestige ? "Prestige: 2 trusts, so targets up to Tough, and zones with aggressive Very Tough mobs are left out."
+          : "Full party of 5 trusts: targets from Decent Challenge up to Very Tough."} Mobs that sleep or silence are flagged; avoid them where you can.
+      </div>
+      <table style={{ marginTop: 6 }}>
+        <thead><tr><th>Zone</th><th>Targets (lv)</th><th>Watch out</th></tr></thead>
+        <tbody>
+          {fold(okSpots, "spots", 3, (s) => (
+            <tr key={s.zoneid}>
+              <td>{s.zone}</td>
+              <td>{s.targets.sort((a, b) => b.n - a.n).slice(0, 6).map((m, i) => <span key={m.name}>{i > 0 && ", "}{m.name} <span className="muted">{lv(m)}</span><Risk m={m} /></span>)}</td>
+              <td>{s.danger.length > 0 && <span className="warn" title={s.danger.map((m) => `${m.name} ${lv(m)}`).join(", ")}>Aggressive Very Tough+ ({s.danger.length})</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!spots.some((s) => s.ok) && <div className="muted">No zone fits this level.</div>}
+      {shownRegimes.length > 0 && <>
+        <div style={{ marginTop: 10 }}><b>Training regimes</b> <span className="muted">Fields / Grounds of Valor pages whose targets are lv{lvl + dc}-{top}</span></div>
+        <table style={{ marginTop: 6 }}>
+          <tbody>
+            {fold(shownRegimes, "regimes", 7, (r) => {
+              const t = (r.targets ?? "").split(/,(?! )/).filter(Boolean).map((x) => { const [name, sleeps, silences] = x.split("|"); return { name, sleeps: sleeps || null, silences: silences || null }; });
+              return (
+                <tr key={r.type + r.id}>
+                  <td>{r.zone}</td>
+                  <td><span className="tag">{r.type}</span></td>
+                  <td className="muted">lv{lv(r)}</td>
+                  <td>{t.map((m, i) => <span key={m.name}>{i > 0 && ", "}{m.name}<Risk m={m} /></span>)}{!t.length && <span className="muted">kill {r.counts}</span>}</td>
+                  <td className="muted" title="Kills needed per target">{r.counts.replace(/,/g, "/")}</td>
+                  <td className="muted">{r.reward} {r.type === "FoV" ? "gil" : "tabs"}</td>
+                  <td>{byZone.get(r.zoneid)?.danger.length ? <span className="warn">Very Tough aggro in zone</span> : null}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </>}
+      </>}
+    </div>
   );
 }
 
@@ -65,6 +170,7 @@ export default function Training() {
         {t.roe.length > 0 && table(t.roe, true)}
       </div>
       {t.other.length > 0 && <div className="card"><b>Other counts</b>{table(t.other, true)}</div>}
+      <LevelSpots />
     </div>
   );
 }

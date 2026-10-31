@@ -4,7 +4,7 @@ import type { Live } from "./live";
 
 export type Page =
   | { name: "character" } | { name: "search"; q?: string } | { name: "mob"; mob: string } | { name: "mobs" }
-  | { name: "item"; id: number } | { name: "blu" } | { name: "gear" } | { name: "progress" } | { name: "training" } | { name: "friends" } | { name: "map" } | { name: "storage" } | { name: "settings" } | { name: "skillchains" } | { name: "trusts" } | { name: "macros" } | { name: "merits" };
+  | { name: "item"; id: number } | { name: "blu" } | { name: "progress" } | { name: "training" } | { name: "friends" } | { name: "map" } | { name: "settings" } | { name: "skillchains" } | { name: "trusts" } | { name: "macros" } | { name: "merits" };
 
 export type Friend = { id: string; char?: Character; checked?: number; err?: string };
 
