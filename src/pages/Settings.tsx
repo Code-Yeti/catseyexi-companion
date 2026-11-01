@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { q, uexec } from "../db";
 import { downloadedCount, localMap, type ZoneMapRow } from "../maps";
 import { useApp } from "../ctx";
+import { alertBox } from "../components/Dialog";
 import { usePrefs, chime, type Corner } from "../prefs";
 
 export default function Settings() {
@@ -98,7 +99,7 @@ export default function Settings() {
 
       <h2>Cached data</h2>
       <p className="muted">CatseyeXI API responses (character, items, mob checks) are cached for offline use.</p>
-      <button onClick={async () => { await uexec("DELETE FROM api_cache"); alert("Cache cleared"); }}>Clear cache</button>
+      <button onClick={async () => { await uexec("DELETE FROM api_cache"); alertBox("Cache cleared."); }}>Clear cache</button>
 
       <h2>Data sources</h2>
       <ul className="muted">

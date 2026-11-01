@@ -4,6 +4,7 @@ import { cx, getItem } from "../catseye";
 import { q, uq, uexec } from "../db";
 import { JOBS, LEVEL_CAP, SLOTS, jobMask, jobName, like, pretty, shownMod } from "../ffxi";
 import ItemIcon from "../components/ItemIcon";
+import { confirmBox, promptBox } from "../components/Dialog";
 
 type Set_ = { id?: number; job: string; name: string; slots: Record<string, number> };
 type Opt = { itemId: number; name: string; level: number; cx: boolean };
@@ -48,13 +49,13 @@ export default function Gear() {
   }, [cur]);
 
   const save = async () => {
-    const name = prompt("Set name:", cur.name);
+    const name = await promptBox("Set name", cur.name);
     if (!name) return;
     if (cur.id) await uexec("UPDATE gearsets SET name=$1, slots=$2 WHERE id=$3", name, JSON.stringify(cur.slots), cur.id);
     else await uexec("INSERT INTO gearsets (job, name, slots) VALUES ($1,$2,$3)", job, name, JSON.stringify(cur.slots));
     await loadSets(job);
   };
-  const del = async () => { if (cur.id && confirm(`Delete ${cur.name}?`)) { await uexec("DELETE FROM gearsets WHERE id=$1", cur.id); loadSets(job); } };
+  const del = async () => { if (cur.id && (await confirmBox(`Delete ${cur.name}?`, "Delete"))) { await uexec("DELETE FROM gearsets WHERE id=$1", cur.id); loadSets(job); } };
   const setSlot = (k: string, id?: number) => setCur((c) => { const slots = { ...c.slots }; id ? (slots[k] = id) : delete slots[k]; return { ...c, slots }; });
 
   const need = Object.values(cur.slots).filter((id) => !owned.has(id));

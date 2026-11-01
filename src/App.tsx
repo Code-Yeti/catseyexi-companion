@@ -26,6 +26,7 @@ import Trusts from "./pages/Trusts";
 import Macros from "./pages/Macros";
 import Merits from "./pages/Merits";
 import Portrait from "./components/Portrait";
+import { DialogHost } from "./components/Dialog";
 
 const NAV: [Page["name"], string][] = [
   ["character", "Character"], ["map", "Map"], ["search", "Search"], ["mobs", "Mobs"], ["blu", "Blue Magic"], ["skillchains", "Skillchains"],
@@ -372,6 +373,7 @@ export default function App() {
           {body}
         </main>
         <TargetCard />
+        <DialogHost />
         <div className="toasts">
           {popups.map((p) => (
             <div key={p.id} className="toast" onClick={() => { setPopups((x) => x.filter((y) => y.id !== p.id)); setPage(p.to); }}>

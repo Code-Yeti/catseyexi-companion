@@ -4,6 +4,7 @@ import { q, uq, uexec, getKv } from "../db";
 import { JOBS, LEVEL_CAP, QUEST_AREAS, decodeLogs, pretty, parseVentures } from "../ffxi";
 import type { Trial } from "../live";
 import ItemIcon from "../components/ItemIcon";
+import { promptBox } from "../components/Dialog";
 
 type Row = { item: string; note?: string; url?: string; done: boolean; log?: number | null; mid?: number | null };
 type Saved = { char: string; ts: number; logs: Record<string, string> };
@@ -55,7 +56,7 @@ export default function Progress() {
 
   const toggle = async (r: Row) => { await uexec("INSERT OR REPLACE INTO checklist VALUES ($1,$2,$3)", list, r.item, r.done ? 0 : 1); load(); };
   const add = async () => { if (!newItem.trim()) return; await uexec("INSERT OR IGNORE INTO checklist VALUES ($1,$2,0)", list, newItem.trim()); setNewItem(""); load(); };
-  const newList = async () => { const n = prompt("New list name:"); if (n) { await uexec("INSERT OR IGNORE INTO checklist VALUES ($1,'(delete me)',0)", n); await loadLists(); setList(n); } };
+  const newList = async () => { const n = await promptBox("New list name"); if (n) { await uexec("INSERT OR IGNORE INTO checklist VALUES ($1,'(delete me)',0)", n); await loadLists(); setList(n); } };
 
   const cw = char?.accountType === 1;
   const shown = rows.filter((r) => (!hideDone || !isDone(r)) && (!(mineOnly && cw && list === "CatsEyeXI Quests") || /\bCW\b/.test(r.note ?? "")));

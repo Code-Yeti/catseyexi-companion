@@ -133,3 +133,5 @@ tr.current td { background: color-mix(in srgb, var(--accent) 18%, transparent); 
 .pip { width: 13px; height: 13px; padding: 0; border-radius: 50%; border: 1.5px solid #4a5063; background: #0e1015; }
 .pip.have { background: var(--good); border-color: var(--good); box-shadow: 0 0 4px var(--good); }
 .pip.goal { background: var(--warn); border-color: var(--warn); box-shadow: 0 0 4px var(--warn); }
+.dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; min-width: 340px; max-width: 520px; box-shadow: 0 12px 40px #000a; }
+.dialog::backdrop { background: #0009; }

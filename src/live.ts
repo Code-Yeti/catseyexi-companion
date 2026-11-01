@@ -10,7 +10,9 @@ export type Live = {
   mainJob: number; mainLevel: number; subJob: number; subLevel: number;
   target?: { name: string; index: number; id: number; hpp: number; mob: boolean };
   bluKnown?: [number, string][];            // [client spell id, name]
-  trustKnown?: number[];                    // client spell ids of known trusts (896+)
+  trustKnown?: number[];
+  equip?: Record<string, string>;           // /equip slot name -> item name (client names, as /equip wants them)
+  known?: { spells: string[]; abilities: string[]; ws: string[] }; // names, for macro/script autocomplete                    // client spell ids of known trusts (896+)
   bluSet?: number[];                        // client spell ids of set spells
   bluPoints?: { spent: number; max: number };
   storage?: Record<string, [number, number][]>; // container -> [itemId, count]
