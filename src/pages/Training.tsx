@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp } from "../ctx";
 import ExpBar from "../components/ExpBar";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { appDataDir } from "@tauri-apps/api/path";
 import { getKv, setKv, q } from "../db";
 import { conBand, dhm, isTimedRoe, jobName, levelSpots, nextTimedRoe, parseTraining, timedRoe, type Count, type SpotMob } from "../ffxi";
 
@@ -136,12 +138,21 @@ function Buffs() {
   useEffect(() => { const i = setInterval(() => setNow(Date.now() / 1000), 1000); return () => clearInterval(i); }, []);
   const buffs = [...(live?.buffs ?? [])].sort((a, b) => (a[2] || Infinity) - (b[2] || Infinity));
   if (!live) return null;
-  const left = (t: number) => { const s = Math.max(0, Math.round(t - now)); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s}s`; };
+  // Icons the addon saved from the game (icons\<id>.bmp); the name shows instead until one exists.
+  const [dir, setDir] = useState("");
+  useEffect(() => { appDataDir().then(setDir); }, []);
+  const [noIcon, setNoIcon] = useState<Set<number>>(new Set());
+  const left = (t: number) => { const s = Math.max(0, Math.round(t - now)); return s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s}s`; };
   return (
     <div className="card">
       <b>Buffs</b>
       {buffs.length ? <div className="buffs">{buffs.map(([id, name, t], i) => (
-        <span key={id + "-" + i} className={t && t - now < 30 ? "warn" : undefined}>{name || `#${id}`}{t > 0 && <span className="muted" style={{ marginLeft: 6 }}>{left(t)}</span>}</span>
+        <span key={id + "-" + i} className={t && t - now < 30 ? "warn" : undefined} title={name || `#${id}`}>
+          {dir && !noIcon.has(id)
+            ? <img src={convertFileSrc(`${dir}\\icons\\${id}.bmp`)} alt={name} onError={() => setNoIcon(new Set(noIcon).add(id))} />
+            : name || `#${id}`}
+          {t > 0 && <small>{left(t)}</small>}
+        </span>
       ))}</div> : <div className="muted">None.</div>}
     </div>
   );
