@@ -137,11 +137,11 @@ function Buffs() {
   const [now, setNow] = useState(Date.now() / 1000);
   useEffect(() => { const i = setInterval(() => setNow(Date.now() / 1000), 1000); return () => clearInterval(i); }, []);
   const buffs = [...(live?.buffs ?? [])].sort((a, b) => (a[2] || Infinity) - (b[2] || Infinity));
-  if (!live) return null;
   // Icons the addon saved from the game (icons\<id>.bmp); the name shows instead until one exists.
   const [dir, setDir] = useState("");
   useEffect(() => { appDataDir().then(setDir); }, []);
   const [noIcon, setNoIcon] = useState<Set<number>>(new Set());
+  if (!live) return null; // after every hook: live goes null when the game closes
   const left = (t: number) => { const s = Math.max(0, Math.round(t - now)); return s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s}s`; };
   return (
     <div className="card">
