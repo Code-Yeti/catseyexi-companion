@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp } from "../ctx";
+import ExpBar from "../components/ExpBar";
 import { getKv, setKv, q } from "../db";
 import { conBand, dhm, isTimedRoe, jobName, levelSpots, nextTimedRoe, parseTraining, timedRoe, type Count, type SpotMob } from "../ffxi";
 
@@ -128,6 +129,24 @@ function LevelSpots() {
   );
 }
 
+// Status effects on you, from the addon, counting down between its writes. Shortest timer first, untimed last.
+function Buffs() {
+  const { live } = useApp();
+  const [now, setNow] = useState(Date.now() / 1000);
+  useEffect(() => { const i = setInterval(() => setNow(Date.now() / 1000), 1000); return () => clearInterval(i); }, []);
+  const buffs = [...(live?.buffs ?? [])].sort((a, b) => (a[2] || Infinity) - (b[2] || Infinity));
+  if (!live) return null;
+  const left = (t: number) => { const s = Math.max(0, Math.round(t - now)); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s}s`; };
+  return (
+    <div className="card">
+      <b>Buffs</b>
+      {buffs.length ? <div className="buffs">{buffs.map(([id, name, t], i) => (
+        <span key={id + "-" + i} className={t && t - now < 30 ? "warn" : undefined}>{name || `#${id}`}{t > 0 && <span className="muted" style={{ marginLeft: 6 }}>{left(t)}</span>}</span>
+      ))}</div> : <div className="muted">None.</div>}
+    </div>
+  );
+}
+
 // Training: kill and collection progress the game prints in chat (training regimes, Records of Eminence, other
 // "(n/m)" counts), captured by the addon and kept in user.db by App (kv "ventureLog"), so it shows with the game closed.
 export default function Training() {
@@ -153,6 +172,8 @@ export default function Training() {
     <div>
       <h1>Training</h1>
       <p className="muted">Progress as the game reports it in chat, read by the game addon. An objective shows up after its first kill or item that counts.</p>
+      <ExpBar big />
+      <Buffs />
       {empty && <div className="card muted">Nothing yet. Defeat a training regime target or make progress on a Records of Eminence objective with the addon running.</div>}
       {t.regime && (
         <div className="card">

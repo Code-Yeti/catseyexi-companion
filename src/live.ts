@@ -18,7 +18,8 @@ export type Live = {
   storage?: Record<string, [number, number][]>; // container -> [itemId, count]
   events?: { spell: number; zone: number; mob: string | null; time: number }[];
   exp?: { cur: number; need: number; limit: number; merits: number; meritsMax: number; limitMode: boolean };
-  weapons?: { slot: number; id: number; wsPoints: number }[]; // equipped main(0)/sub(1)/ranged(2)
+  buffs?: [number, string, number][];        // status effects on you: [id, name, expiry unix time (0 = no timer)]
+  weapons?:{ slot: number; id: number; wsPoints: number }[]; // equipped main(0)/sub(1)/ranged(2)
   wsUsed?: { ws: number; target: number; sc: number; time: number }[]; // your weapon skills (sc = skillchain message)
   ventureLog?: { text: string; mode?: number; time: number; n?: number; mob?: string }[]; // mob: regime kills // tracked chat: Ventures, replies to your ! commands, training/RoE progress; last 100
   engaged?: boolean;                      // player has weapons drawn
