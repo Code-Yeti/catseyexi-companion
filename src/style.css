@@ -111,7 +111,7 @@ a, .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .exp-bar + .who { margin-top: 0; }
 .exp-bar .bar { height: 6px; margin: 5px 0 3px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .exp-bar .bar div { height: 100%; background: var(--accent); transition: width .6s ease-out; }
-.exp-bar.big { margin-top: 0; padding: 12px 14px; font-size: 15px; border-top: none; }
+.exp-bar.big { margin: 8px 0; padding: 12px 14px; font-size: 15px; border-top: none; }
 .exp-bar.big > .row { font-size: 20px; font-weight: 600; }
 .exp-bar.big .bar { height: 14px; margin: 8px 0 6px; border-radius: 7px; }
 .buffs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

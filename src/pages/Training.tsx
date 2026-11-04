@@ -183,8 +183,10 @@ export default function Training() {
     <div>
       <h1>Training</h1>
       <p className="muted">Progress as the game reports it in chat, read by the game addon. An objective shows up after its first kill or item that counts.</p>
-      <ExpBar big />
-      <Buffs />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+        <ExpBar big />
+        <Buffs />
+      </div>
       {empty && <div className="card muted">Nothing yet. Defeat a training regime target or make progress on a Records of Eminence objective with the addon running.</div>}
       {t.regime && (
         <div className="card">
