@@ -6,6 +6,11 @@ import { fitMap, type Pair } from "../ffxi";
 
 export type Pt = { x: number; z: number; label: string };
 type Fit = { a: number; b: number; c: number; d: number }; // px = a*x + b, py = c*z + d (image pixels)
+// Your own map pins, stored per map file in image pixels, so they work on uncalibrated maps too.
+type Pin = { id: number; x: number; y: number; icon: string; color: string; note: string };
+// ︎ keeps symbols that have emoji forms as plain glyphs, so they take the pin colour.
+const ICONS = ["●", "★", "▲", "■", "◆", "✚", "✖", "⚑︎", "☠︎", "⚔︎", "?", "!"];
+const COLORS = ["#ff5555", "#ffb347", "#ffe066", "#5fd35f", "#4fc3f7", "#c77dff", "#ffffff"];
 
 // Zone map from bg-wiki with spawn dots. Most outdoor maps are auto-calibrated at build time (zone lines + NPC
 // positions); for the rest, "Fit dots" lets you drag/scroll the zone's spawn cloud onto the map's marked mob areas,
@@ -20,6 +25,10 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   const [saved, setSaved] = useState<Fit | null>(null);
   const [draft, setDraft] = useState<Fit | null>(null); // non-null while fitting
   const [cloud, setCloud] = useState<{ x: number; z: number }[]>([]);
+  const [pins, setPins] = useState<Pin[]>([]);
+  const [adding, setAdding] = useState(false);       // next map click places a pin
+  const [sel, setSel] = useState<number | null>(null); // pin being edited
+  const pinDrag = useRef<{ id: number; moved: boolean } | null>(null);
   const drag = useRef<{ x: number; y: number; fit: Fit } | null>(null);
   const box = useRef<HTMLDivElement>(null);   // the (zoomed) map content; toImg works through its scaled rect
   const frame = useRef<HTMLDivElement>(null); // fixed viewport around it
@@ -57,6 +66,8 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
     setSrc(undefined); setErr(undefined); setDraft(null); setMarks(null); setView({ z: 1, tx: 0, ty: 0 }); setFollow(false);
     localMap(m).then(setSrc).catch((e) => setErr(String(e)));
     uq<Fit>("SELECT a,b,c,d FROM map_fit WHERE file=$1", m.file).then((r) => setSaved(r[0] ?? null));
+    setAdding(false); setSel(null);
+    uq<Pin>("SELECT id,x,y,icon,color,note FROM map_pins WHERE file=$1", m.file).then(setPins);
   }, [m?.file]);
 
   // Wheel: scales the dots while fitting, otherwise zooms the map toward the cursor. React's onWheel is passive and
@@ -109,8 +120,26 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
   const here = live && live.zone === zoneid ? live.pos : char?.pos_zone === zoneid ? { x: char.pos_x, z: char.pos_z } : null;
   const jump = !!here && !!prevHere.current && Math.hypot(here.x - prevHere.current.x, here.z - prevHere.current.z) > 60; // yalms
   prevHere.current = here ? { x: here.x, z: here.z } : null;
+  const addPin = async (p: { x: number; y: number }) => {
+    const last = pins.find((q) => q.id === sel) ?? pins[pins.length - 1]; // new pins copy the last style
+    const pin = { x: p.x, y: p.y, icon: last?.icon ?? "★", color: last?.color ?? COLORS[1], note: "" };
+    const r = await uexec("INSERT INTO map_pins (file,x,y,icon,color,note) VALUES ($1,$2,$3,$4,$5,$6)", m.file, pin.x, pin.y, pin.icon, pin.color, pin.note);
+    const id = Number(r.lastInsertId);
+    setPins((ps) => [...ps, { id, ...pin }]); setSel(id); setAdding(false);
+  };
+  const editPin = (id: number, ch: Partial<Pin>) => {
+    const p = { ...pins.find((q) => q.id === id)!, ...ch };
+    setPins((ps) => ps.map((q) => (q.id === id ? p : q)));
+    uexec("UPDATE map_pins SET x=$2,y=$3,icon=$4,color=$5,note=$6 WHERE id=$1", id, p.x, p.y, p.icon, p.color, p.note);
+  };
+  const delPin = async (id: number) => {
+    await uexec("DELETE FROM map_pins WHERE id=$1", id);
+    setPins((ps) => ps.filter((q) => q.id !== id)); setSel(null);
+  };
+  const selPin = pins.find((q) => q.id === sel);
   const mark = (e: React.MouseEvent) => {
     if (dragged.current) { dragged.current = false; return; } // that was a pan, not a click
+    if (adding) return void addPin(toImg(e));
     if (!marks || !live || live.zone !== zoneid) return;
     const p = toImg(e);
     const next = [...marks, { x: live.pos.x, z: live.pos.z, px: p.x, py: p.y }];
@@ -149,7 +178,7 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
       )}
       {err && <div className="error">Couldn't download map: {err}</div>}
       <div className="map-frame" ref={frame} onClick={mark}
-        style={{ cursor: marks ? "crosshair" : draft ? "move" : view.z > 1 ? "grab" : "default" }}
+        style={{ cursor: marks || adding ? "crosshair" : draft ? "move" : view.z > 1 ? "grab" : "default" }}
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           if (draft && !marks) drag.current = { ...toImg(e), fit: draft };      // fitting: drag moves the dots
@@ -172,6 +201,8 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
           <button title="Zoom out" onClick={() => zoomAt(1 / 1.5)}>−</button>
           {here && fit && <button title={follow ? "Following you (click to stop)" : "Follow me: keep my position centred"}
             className={follow ? "active-tab" : ""} onClick={() => setFollow(!follow)}>⌖</button>}
+          <button title={adding ? "Click the map to place a pin (click here to cancel)" : "Add a pin"}
+            className={adding ? "active-tab" : ""} onClick={() => setAdding(!adding)}>📍</button>
           {view.z > 1 && <button title="Reset zoom" onClick={() => { setFollow(false); animView.current = false; setView({ z: 1, tx: 0, ty: 0 }); }}>⟲</button>}
         </div>
         <div ref={box} className="map-content" style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.z})`,
@@ -195,9 +226,51 @@ export default function ZoneMap({ zoneid, points }: { zoneid: number; points: Pt
             {marks.map((q, i) => <circle key={i} cx={q.px} cy={q.py} r={r * 1.2} className="mark" />)}
           </svg>
         )}
+        {src && (
+          <svg viewBox={`0 0 ${W} ${H}`} className="map-overlay">
+            {pins.map((p) => (
+              // Drag moves the pin; a click without moving opens it for editing.
+              <text key={p.id} x={p.x} y={p.y} fontSize={r * 4.5} fill={p.color}
+                className={"pin" + (p.id === sel ? " pin-sel" : "")}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); pinDrag.current = { id: p.id, moved: false }; }}
+                onPointerMove={(e) => {
+                  const g = pinDrag.current;
+                  if (g?.id !== p.id) return;
+                  g.moved = true;
+                  const q = toImg(e);
+                  setPins((ps) => ps.map((o) => (o.id === p.id ? { ...o, x: q.x, y: q.y } : o)));
+                }}
+                onPointerUp={() => {
+                  const g = pinDrag.current;
+                  pinDrag.current = null;
+                  if (g?.moved) editPin(p.id, {}); else setSel(sel === p.id ? null : p.id);
+                }}>
+                {p.icon}{p.note && <title>{p.note}</title>}
+              </text>
+            ))}
+          </svg>
+        )}
         </div>
       </div>
+      {selPin && (
+        <div className="row pin-edit">
+          {ICONS.map((ic) => (
+            <button key={ic} className={ic === selPin.icon ? "active-tab" : ""} style={{ color: selPin.color }}
+              onClick={() => editPin(selPin.id, { icon: ic })}>{ic}</button>
+          ))}
+          {COLORS.map((c) => (
+            <button key={c} className={"swatch" + (c === selPin.color ? " active-tab" : "")} style={{ background: c }}
+              onClick={() => editPin(selPin.id, { color: c })} />
+          ))}
+          <input type="color" value={selPin.color} onChange={(e) => editPin(selPin.id, { color: e.target.value })} title="Any colour" />
+          <input placeholder="Hover text" value={selPin.note} onChange={(e) => editPin(selPin.id, { note: e.target.value })} />
+          <button onClick={() => delPin(selPin.id)}>Delete</button>
+          <button onClick={() => setSel(null)}>Done</button>
+        </div>
+      )}
       <div className="row muted">
+        {adding && <span className="warn">Click the map to place a pin.</span>}
         {marks ? (
           <>{marks.length === 0 ? "Click the spot on the map where you're standing right now." :
               draft ? `${marks.length} points: fit looks good. Mark more to refine, or save.` :

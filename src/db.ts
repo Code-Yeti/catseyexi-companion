@@ -18,6 +18,7 @@ export const user = () =>
       CREATE TABLE IF NOT EXISTS gearsets (id INTEGER PRIMARY KEY AUTOINCREMENT, job TEXT, name TEXT, slots TEXT);
       CREATE TABLE IF NOT EXISTS checklist (list TEXT, item TEXT, done INT DEFAULT 0, PRIMARY KEY (list, item));
       CREATE TABLE IF NOT EXISTS map_fit (file TEXT PRIMARY KEY, a REAL, b REAL, c REAL, d REAL);
+      CREATE TABLE IF NOT EXISTS map_pins (id INTEGER PRIMARY KEY AUTOINCREMENT, file TEXT, x REAL, y REAL, icon TEXT, color TEXT, note TEXT);
       CREATE TABLE IF NOT EXISTS friends (id TEXT PRIMARY KEY, added INT);
       CREATE TABLE IF NOT EXISTS blu_history (name TEXT PRIMARY KEY, zoneid INT, mob TEXT, time INT);`);
     return db;
